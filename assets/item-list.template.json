@@ -1,0 +1,18 @@
+{
+  "assignment": {
+    "name": "Assignment Name Here",
+    "description": "Brief description of what this assignment accomplishes",
+    "created": "YYYY-MM-DDTHH:MM:SSZ",
+    "last_updated": "YYYY-MM-DDTHH:MM:SSZ"
+  },
+  "next_override": null,
+  "items": [],
+  "completed_summary": [],
+  "metadata": {
+    "total_items": 0,
+    "completed": 0,
+    "in_progress": 0,
+    "blocked": 0,
+    "pending": 0
+  }
+}

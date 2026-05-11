@@ -1,0 +1,36 @@
+---
+# Interface 3 — task-input-batch.yaml
+# Produced by task-relay's Step 2 decomposition, or by any external
+# decomposer. Ingested via the Batch Ingestion workflow.
+schema_version: 1
+
+# Set delta: true to apply surgical updates against an existing item-list.
+# Omit (or set false) for a full new-item ingestion.
+delta: false
+
+# Optional: provenance info preserved into progress.log.
+source:
+  produced_by: "task-relay-step-2 | external-decomposer | manual"
+  produced_at: "YYYY-MM-DDTHH:MM:SSZ"
+  design_ref: "10-reference/000_YYYY-MM-DD_spec.md"
+
+items:
+  - title: "<short imperative phrase, ≤80 chars>"
+    description: |
+      <full description, multi-line allowed>
+    category: "setup|implementation|testing|documentation|refactor|bugfix"
+    complexity: "simple"          # or "complex"
+    priority: 1                    # lower = earlier
+    depends_on: []                 # ITEM-IDs or in-batch titles
+    validation_criteria:
+      - "<objective check 1>"
+      - "<objective check 2>"
+    rationale_for_order: "<why this comes here; cite evidence>"
+
+  # Delta-only example operations:
+  # - op: modify
+  #   target: ITEM-005
+  #   patch:
+  #     description: "<new description>"
+  # - op: remove
+  #   target: ITEM-007
