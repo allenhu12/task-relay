@@ -1,14 +1,14 @@
 # Decomposition Rules
 
-Canonical rules for breaking an assignment into items. Cited from `SKILL.md`
-Initialization Phase / Step 2 and from any external decomposer that produces
-a `task-input-batch.yaml` (Interface 3).
+Canonical rules for breaking an assignment into items and tasks. Cited from
+`SKILL.md` Initialization Phase / Step 2 and from any external decomposer
+that produces a `task-input-batch.yaml` (Interface 3).
 
 The discipline is borrowed from VlppParser2's scrum prompt: loose granularity
-guidance is not enough — without these five rules, decomposition drifts and
-items become unreliable.
+guidance is not enough — without these rules, decomposition drifts and items
+become unreliable.
 
-## The five rules
+## The rules
 
 ### 1. One idea per item
 
@@ -35,26 +35,38 @@ ITEM-N+1 fixes, the split is wrong — merge them, or re-order.
 
 ### 4. Every item cites why it comes here
 
-The item's `rationale_for_order` must reference KB entries, source files,
-or prior items — not hand-waving. If you can't justify the order, the
-order is wrong.
+The item's rationale must reference KB entries, source files, or prior items
+— not hand-waving. If you can't justify the order, the order is wrong.
 
 ✅ "Comes after ITEM-005 because the schema migration in 005 introduces the
     `users.refresh_token` column this endpoint reads."
 ❌ "Seems like the next logical step."
 
-### 5. Every item carries a `complexity` flag
+### 5. Every item is session-sized
 
-Either `simple` (handled inline by the base agent) or `complex` (handed off
-to `deep-task` via the deep adapter). This drives the execution path
-automatically.
+An item must be completable in roughly one session (~30–90 minutes). If an
+item would take more, split it into smaller items. **This rule replaces the
+old `complexity: complex` / deep-task escape hatch.** Good decomposition is
+the only defense against oversized items.
 
 Rule of thumb:
-- **simple** — single file or two; obvious validation; no design phase needed.
-- **complex** — touches ≥3 files, or needs a written plan, or has subtle
-  invariants the executor must reason about.
+- **Fits one session** — single file or two; obvious validation; no design phase needed.
+- **Needs splitting** — touches ≥3 files, or needs a written plan, or has subtle
+  invariants the executor must reason about. Split into 2–3 items instead.
 
-## Granularity (advisory, not mandatory)
+### 6. Every item has ≥1 task
+
+A trivial item is an item with a single task (mirroring its description).
+Larger items get 2–5 tasks in `tasks[]`. Tasks are the checkpoint and
+resumability mechanism — they let a session overflow gracefully if context
+fills before the item is done.
+
+**Task sizing guidance**:
+- Each task should be a concrete, independently validatable sub-step (~10–30 minutes).
+- Tasks within an item may be worked in any order (user-chosen); do not encode mandatory sequencing into the numbering.
+- If a task would still take more than one session, it is too large — split the item.
+
+## Item Granularity (advisory)
 
 | Assignment scope | Typical item count |
 |---|---|
@@ -65,7 +77,7 @@ Rule of thumb:
 If your project produces fewer than 3 items, you probably don't need
 task-relay — drive the work directly.
 
-## Item schema
+## Item schema (v1.3)
 
 Full canonical schema (matches `references/item-list-schema.json`):
 
@@ -74,22 +86,31 @@ Full canonical schema (matches `references/item-list-schema.json`):
   "id": "ITEM-XXX",
   "category": "setup|implementation|testing|documentation|refactor|bugfix",
   "description": "<imperative phrase>",
-  "complexity": "simple | complex",
   "priority": 1,
-  "depends_on": ["ITEM-YYY"],
-  "validation_criteria": ["<objective check>", "..."],
-  "validation_steps": ["<alias for validation_criteria>"],
-  "rationale_for_order": "<why this comes here, citing evidence>",
+  "validation_steps": ["<item-level rollup check>", "..."],
   "status": "pending",
   "completed_at": null,
-  "notes": ""
+  "notes": "",
+  "working_dir": null,
+  "files": [],
+  "tasks": [
+    {
+      "id": "TASK-XXX-01",
+      "description": "<concrete sub-step>",
+      "status": "pending",
+      "validation_steps": ["<task-level check>"],
+      "completed_at": null,
+      "notes": ""
+    }
+  ]
 }
 ```
 
-> **Field aliasing.** `validation_steps` and `validation_criteria` are
-> aliases for one major version. Producers may emit either; consumers must
-> accept both. `validation_criteria` is the canonical name going forward
-> (aligns with Interface 4).
+**Field notes**:
+- `validation_steps` is the canonical field name at both item and task level.
+- `working_dir` is null until the item first goes `in_progress`; set by the agent lazily.
+- `files` is agent-maintained; tracks files inside `working_dir`.
+- Item status enum: `pending | in_progress | completed | blocked | cancelled`.
 
 ## Working from an existing design
 
@@ -99,13 +120,9 @@ the source of truth; your decomposition is its execution plan.
 
 ## Legacy items
 
-Existing items without `complexity` or `rationale_for_order` are treated as:
-
-- `complexity: simple`
-- `rationale_for_order: "(legacy item, no rationale recorded)"`
-
-Consumers must accept legacy items unmodified. Do not retroactively
-re-decompose unless the user explicitly requests it.
+Existing items without `tasks[]` are treated as having a single task
+auto-derived from the item description. Consumers must accept legacy items
+unmodified. Do not retroactively re-decompose unless the user explicitly requests it.
 
 ## Citing this document
 
@@ -113,4 +130,4 @@ From `SKILL.md`:
 > Decomposition rules — see `references/decomposition-rules.md`.
 
 From `task-input-batch.yaml` producers:
-> Items conform to `references/decomposition-rules.md` (five rules).
+> Items conform to `references/decomposition-rules.md` (six rules).

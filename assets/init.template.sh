@@ -26,5 +26,6 @@ cd "$(dirname "$0")"
 # - npm run test:quick
 
 echo "✅ Initialization complete"
-echo "📋 Read progress.log for latest status"
-echo "📝 Read item-list.json for pending items"
+echo "📋 Read 00-current/progress.log for latest status"
+echo "📝 Read 00-current/item-list.json for pending items"
+echo "📁 Per-item workspaces: 20-working/<ITEM-ID>/"

@@ -20,11 +20,10 @@ cat AGENTS.md
 # 3. Read recent progress log context from 00-current/
 tail -100 00-current/progress.log
 
-# 4. Load item list from 00-current/ (active items + compact completed summaries)
+# 4. Load item list from 00-current/ (active items + compact terminal summaries)
 cat 00-current/item-list.json
-# NOTE: Do NOT read item-list-archive.json here — it contains full records of
-# completed items and is only needed when you must reference detailed history
-# of a specific completed item.
+# NOTE: Do NOT read item-list-archive.json here — only on demand when you must
+# reference detailed history of a specific terminal item.
 
 # 5. Check user decisions (read-only!)
 cat 00-current/user-decision.md
@@ -41,10 +40,11 @@ cat 10-reference/MANIFEST.md
 ls 10-reference/
 
 # 7b. If progress-log archives exist, read the manifest (cheap; one table)
-[ -f 30-logs/PROGRESS-ARCHIVE-MANIFEST.md ] && cat 30-logs/PROGRESS-ARCHIVE-MANIFEST.md
-# Pull a specific 30-logs/progress-archive-*.log ONLY when the current item
-# needs context (decisions, blockers, narrative) outside the fresh progress.log
-# AND the JSON state files don't already have it.
+[ -f 90-archive/progress-log/PROGRESS-ARCHIVE-MANIFEST.md ] && \
+  cat 90-archive/progress-log/PROGRESS-ARCHIVE-MANIFEST.md
+# Pull a specific archive ONLY when the current item needs context (decisions,
+# blockers, narrative) outside the fresh progress.log AND the JSON state files
+# don't already have it. NEVER load archives speculatively.
 
 # 8. Load relevant reference files (progressive disclosure)
 # Based on the current item's category/description and MANIFEST entries,
@@ -61,29 +61,37 @@ npm test  # or equivalent
 
 - Read AGENTS.md (understand workflow rules)
 - Read the last 100 lines of `00-current/progress.log`
-- Read `00-current/item-list.json` (active items + compact completed summaries)
+- Read `00-current/item-list.json` (active items with tasks[] + compact terminal summaries)
 - Do **NOT** read `00-current/item-list-archive.json` (only on demand)
 - Read `00-current/user-decision.md` (user context — **DO NOT MODIFY**)
 - Read `00-current/memory.md` if it exists
 - Read `10-reference/000_YYYY-MM-DD_spec.md` (reference paths and URLs)
 - If the spec file is missing in an existing project, ask the user for it; do not create it during execution
 - Read `10-reference/MANIFEST.md` (discover available reference files); run `ls 10-reference/` and update MANIFEST if files added/removed
-- If `30-logs/PROGRESS-ARCHIVE-MANIFEST.md` exists, read it. Pull a specific archive only on demand — never speculatively
+- If `90-archive/progress-log/PROGRESS-ARCHIVE-MANIFEST.md` exists, read it. Pull a specific archive only on demand — never speculatively
 - Based on the current item's category and description, load only relevant reference files (progressive disclosure)
 - Check metadata counts (progress overview); note any blockers from prior sessions
 - Verify environment initialized successfully
 
-## Step 2: Item Selection
+## Step 2: Selection Gate
 
-Select exactly **one** item to work on this session.
+**This step is read-only + a single confirmation gate. Never auto-execute.**
 
-### Selection algorithm
+### Resume case (item already `in_progress` from a prior overflow)
+
+If `item-list.json` contains an item with `status: in_progress`:
+- Do **NOT** run item selection — that item is already chosen.
+- If a task within that item is `in_progress`: propose resuming that specific task (the overflow resume point).
+- If no task is `in_progress` in the item: list remaining `pending` tasks and **ask the user to choose** which one to run next.
+- Do NOT mark anything new `in_progress` until the user responds.
+
+### Selection case (no item currently `in_progress`)
 
 ```python
-def select_next_item(data):
-    """Select the next item to work on."""
+def select_candidate(data):
+    """Identify (but do not mark) the next candidate item."""
 
-    # 1. Check for next_override (user-requested priority item)
+    # 1. Check for next_override
     override_id = data.get("next_override")
     if override_id:
         override_item = next(
@@ -92,67 +100,276 @@ def select_next_item(data):
             None
         )
         if override_item:
-            data["next_override"] = None  # Clear after selecting
-            return override_item
+            return override_item  # cleared only on user confirm
         else:
-            data["next_override"] = None  # Target not found — clear, fall through
+            data["next_override"] = None  # target not found — clear, fall through
 
-    # 2. Normal selection: pending items, sort by priority (lowest = highest priority)
+    # 2. Normal selection: lowest-priority pending item
     pending = [item for item in data["items"] if item["status"] == "pending"]
     if not pending:
-        return None
+        return None  # "nothing actionable" — report and stop
     pending.sort(key=lambda x: x["priority"])
     return pending[0]
+
+    # NOTE: NEVER pick a blocked item. If all pending are blocked → return None.
 ```
 
-### Override behaviour
+### Confirmation protocol
 
-- If `next_override` is a valid pending item ID, that item is selected regardless of priority.
-- The override is automatically cleared (set to `null`) after selection.
-- If the override target is not found, blocked, or already completed, clear it and resume normal selection.
+1. Present the candidate item (id, description, tasks overview) to the user.
+2. **STOP and wait for confirmation.**
+3. On confirm:
+   - Mark item `in_progress`; update `metadata`.
+   - Clear `next_override` (if it was set).
+   - Create `20-working/<ITEM-ID>/` folder if it does not exist yet.
+   - Initialize `20-working/<ITEM-ID>/log.md` from `assets/session-log.template.md`.
+4. On reject: leave state unchanged; `next_override` stays set if it was set.
 
-### Update state on selection
+### "Nothing actionable" path
 
-In `00-current/item-list.json`:
+If no pending items exist (all blocked or all terminal):
+- Report "nothing actionable: all remaining items are blocked (or there are none)."
+- List blocked items if any so the user can unblock.
+- Do NOT auto-select a blocked item.
+
+## Step 3: Task Loop (User-Driven)
+
+After the item is confirmed `in_progress`, enter the task loop.
+
+### Task loop protocol
+
+1. Read the item's `tasks[]` from `item-list.json`.
+2. List all `pending` tasks (do NOT show completed/cancelled unless the user asks).
+3. Ask the user: "Which task should we work on? [list]"
+4. **Wait for user selection.** The agent does not auto-pick.
+5. Mark the selected task `in_progress`; flush `item-list.json` immediately.
+6. Do the work for that task.
+7. Run the task's `validation_steps`.
+8. Mark the task `completed` / `blocked` / `cancelled`; flush `item-list.json`.
+9. Append progress note to `20-working/<ITEM-ID>/log.md`.
+10. **STOP. Go back to step 2 of this loop** (list remaining tasks, ask again).
+
+The loop ends when:
+- The user says to stop (end session / context overflow).
+- No `pending` tasks remain (all `completed` or `cancelled`) → proceed to Item Completion.
+
+### Task state rules
+
+- Exactly **one** `in_progress` task at a time within the `in_progress` item.
+- A `blocked` task does NOT block the item — user can pick another task.
+- `cancelled` tasks require `notes`; they are skipped in selection.
+- The agent NEVER auto-advances to the next task.
+
+### Overflow / mid-session handoff
+
+If context fills before the item is done:
+1. Ensure the current task's state is flushed (`in_progress` or `completed` in JSON).
+2. Append a handoff note to `00-current/progress.log`:
+   ```markdown
+   ### Session N - YYYY-MM-DD HH:MM
+   **Phase**: Execution (overflow / mid-item)
+   **Item**: ITEM-003 - <description>
+   **Task in progress**: TASK-003-02 - <task description> (left in_progress)
+   **Tasks completed this session**: TASK-003-01
+   **Tasks remaining**: TASK-003-02 (in_progress), TASK-003-03 (pending)
+   **Handoff note**: Context limit reached. Resume with TASK-003-02 next session.
+   ```
+3. End the session. Do NOT clear `in_progress` on item or task.
+
+## Step 4: Validation
+
+**Rule**: only mark a task `completed` if ALL its `validation_steps` pass.
+**Rule**: only mark an item `completed` if ALL tasks are `completed` or `cancelled` AND all item-level `validation_steps` pass.
+
+For each validation entry:
+
+1. Execute the step exactly as written.
+2. Document the result (pass / fail).
+3. If ANY step fails:
+   - Do NOT mark `completed`.
+   - Fix and re-validate, OR
+   - Mark as `blocked` with detailed notes.
+
+### Example validation execution
+
+```
+Task TASK-001-02 validation_steps:
+  "Run npm test and verify all tests pass"
+  "Start the app and verify /login loads"
+
+✅ npm test - All 24 tests passed
+✅ Navigate to /login - Page loads correctly
+→ All task validations passed → mark TASK-001-02 completed
+```
+
+## Step 5: Item Completion and Archival
+
+### 5.1 Item completion rollup check
+
+Before marking an item `completed`, verify:
+1. Every task is `completed` or `cancelled`.
+2. Every `cancelled` task has a non-empty `notes` field.
+3. Every item-level `validation_steps` entry passes.
+
+If any check fails, do NOT mark completed. Fix or mark `blocked`.
+
+### 5.2 Whole-item `cancelled` procedure
+
+If the user wants to cancel an entire item:
+1. **Require user confirmation** (cancelling work is consequential).
+2. Set item `status: cancelled`; fill `notes` with reason.
+3. Task cascade: set every non-`completed` task to `cancelled` with `notes: "Item ITEM-XXX cancelled: <reason>"`. Leave already-`completed` tasks as-is (preserve audit trail).
+4. Proceed to archival (step 5.3).
+
+### 5.3 Terminal archival (completed or cancelled)
+
+Run this for any item that just became terminal (`completed` or `cancelled`):
 
 ```json
+// Step A: Append the FULL item record to 00-current/item-list-archive.json
 {
   "id": "ITEM-003",
-  "status": "in_progress",
-  ...
+  "category": "implementation",
+  "description": "Implement user login page",
+  "priority": 3,
+  "validation_steps": ["Run npm test...", "Navigate to /login..."],
+  "status": "completed",
+  "completed_at": "2025-12-10T14:45:00Z",
+  "notes": "All tests passing, validated in dev environment",
+  "working_dir": "20-working/ITEM-003",
+  "files": ["20-working/ITEM-003/log.md"],
+  "tasks": [
+    {
+      "id": "TASK-003-01", "description": "...", "status": "completed",
+      "validation_steps": ["..."], "completed_at": "...", "notes": ""
+    }
+  ]
+}
+
+// Step B: REMOVE the full record from items[] in item-list.json
+
+// Step C: ADD a compact entry to terminal_summary in item-list.json
+{
+  "terminal_summary": [
+    {
+      "id": "ITEM-003",
+      "description": "Implement user login page",
+      "status": "completed",
+      "completed_at": "2025-12-10T14:45:00Z"
+    }
+  ]
+}
+
+// Step D: Update metadata
+{
+  "metadata": {
+    "total_items": 15,
+    "completed": 4,     // or cancelled++
+    "in_progress": 0,
+    "blocked": 0,
+    "pending": 10,
+    "cancelled": 1      // only if item was cancelled
+  }
 }
 ```
 
-And:
-
-```json
-{ "next_override": null }
-```
-
-Update metadata:
+**For blocked items** — keep in `items[]` (no archival):
 
 ```json
 {
-  "metadata": {
-    "in_progress": 1,
-    "pending": 12
-  }
+  "id": "ITEM-005",
+  "status": "blocked",
+  "completed_at": null,
+  "notes": "Blocked: Waiting for API credentials from user."
 }
+```
+
+### 5.4 Update progress.log
+
+Append a new session entry:
+
+```markdown
+### Session N - 2025-12-10 14:00
+**Phase**: Execution
+**Duration**: ~45 minutes
+**Agent**: [Claude Code / ChatGPT / Gemini / etc.]
+
+**Item**: ITEM-003 - Implement user login page
+**Status**: ✅ Completed
+
+**Tasks completed this session**: TASK-003-01, TASK-003-02
+**Work Performed**:
+1. Created login.tsx component with form validation
+2. Integrated with authentication API
+3. Added error handling for invalid credentials
+4. Implemented redirect to dashboard on success
+
+**Validation Results**:
+- ✅ npm test - All 24 tests passed
+- ✅ Navigate to /login - Page loads correctly
+- ✅ Submit valid credentials - Redirects to dashboard
+
+**State Updates**:
+- ITEM-003: in_progress → completed (archived to item-list-archive.json)
+- terminal_summary: added ITEM-003 (status: completed)
+- metadata.completed: 3 → 4
+
+**Item Log**: [[20-working/ITEM-003/log.md]]
+
+**Next Session Recommendation**: ITEM-004 - Implement password reset flow
+
+---
+```
+
+### 5.5 Commit changes (if using Git)
+
+```bash
+git add 00-current/item-list.json 00-current/item-list-archive.json \
+        00-current/progress.log 20-working/ITEM-003/
+git commit -m "Complete ITEM-003: Implement user login page
+
+- Created login component with validation
+- Integrated authentication API
+- All tests passing"
+```
+
+## Step 6: Session Summary
+
+Report to user:
+
+```markdown
+✅ **Session Complete**
+
+**Item**: ITEM-003 - Implement user login page
+**Status**: Completed
+**Tasks**: TASK-003-01 ✅, TASK-003-02 ✅
+**Validation**: All checks passed
+
+**Progress**:
+- Completed: 4/15 (26.7%)
+- Remaining: 11 items
+- Blocked: 0 items
+
+**Files Updated**:
+- 00-current/item-list.json
+- 00-current/item-list-archive.json
+- 00-current/progress.log
+- 20-working/ITEM-003/log.md
+
+**Next Session**: Start with ITEM-004 - Implement password reset flow
+
+📖 See 00-current/progress.log for session history
+📁 See 20-working/ITEM-003/ for item artifacts
 ```
 
 ## Inserting Items During Execution
 
 Users may need to add urgent items mid-assignment.
 
-**When to insert**:
-- User explicitly requests: "add a new item for X" or "I need to handle X first"
-- A discovered dependency or bug requires immediate attention
-- Scope change from user decisions
-
 **Procedure**:
 
-1. Determine the next item ID (highest existing in both `items` and `completed_summary`, +1).
-2. Create the item with full fields per the v1.1 schema (`complexity`, `depends_on`, `validation_criteria`, `rationale_for_order`, `status: pending`, etc.).
+1. Determine the next item ID (highest existing in both `items` and `terminal_summary`, +1).
+2. Create the item with full v1.3 schema fields including `tasks[]` (≥1 task).
 3. Append to `items` array.
 4. Update metadata: increment `total_items` and `pending`.
 5. If the item should be handled first: set `next_override` to the new item's ID.
@@ -165,249 +382,37 @@ Users may need to add urgent items mid-assignment.
   "id": "ITEM-048",
   "category": "bugfix",
   "description": "Fix critical login redirect loop discovered during ITEM-012 work",
-  "complexity": "simple",
   "priority": 48,
-  "depends_on": [],
-  "validation_criteria": [
+  "validation_steps": [
     "Login no longer enters redirect loop",
     "Session token is set correctly after login"
   ],
-  "rationale_for_order": "Hot-patch discovered during ITEM-012; blocks user testing.",
   "status": "pending",
   "completed_at": null,
-  "notes": "Discovered during ITEM-012."
+  "notes": "Discovered during ITEM-012.",
+  "working_dir": null,
+  "files": [],
+  "tasks": [
+    {
+      "id": "TASK-048-01",
+      "description": "Identify root cause of redirect loop in auth middleware",
+      "status": "pending",
+      "validation_steps": ["Root cause documented in ITEM-048/log.md"],
+      "completed_at": null,
+      "notes": ""
+    },
+    {
+      "id": "TASK-048-02",
+      "description": "Apply fix and verify session token is set correctly",
+      "status": "pending",
+      "validation_steps": ["Login no longer loops", "Session token valid after login"],
+      "completed_at": null,
+      "notes": ""
+    }
+  ]
 }
 ```
 
 ```json
 { "next_override": "ITEM-048" }
 ```
-
-Update metadata:
-
-```json
-{
-  "metadata": {
-    "total_items": 48,
-    "pending": 13
-  }
-}
-```
-
-### Example — insert without priority override
-
-Add the item as above, but leave `next_override` as `null`. The item will be picked up based on its priority.
-
-## Step 3: Execution
-
-Perform the work for the selected item.
-
-1. Read the item description — understand exactly what needs to be done.
-2. Check validation criteria — know how you'll verify completion.
-3. Do the work — implement, write, code, analyze, etc.
-4. Stay scoped — only work on **this** item; resist scope creep.
-
-**Anti-patterns to avoid**:
-- ❌ Working on multiple items simultaneously
-- ❌ Adding "just one more thing" beyond item scope
-- ❌ Modifying other items while working on this one
-- ❌ Skipping validation "to save time"
-
-For `complexity: complex` items, consider invoking `/task-relay deep ITEM-XXX`
-(see `references/deep-adapter.md`) rather than executing inline.
-
-## Step 4: Validation (CRITICAL)
-
-**Rule**: only mark an item `completed` if ALL validation steps pass.
-
-For each entry in `validation_criteria`:
-
-1. Execute the step exactly as written.
-2. Document the result (pass / fail).
-3. If ANY step fails:
-   - Do NOT mark `completed`.
-   - Fix and re-validate, OR
-   - Mark as `blocked` with detailed notes.
-
-### Example validation execution
-
-```json
-[
-  "Run npm test and verify all tests pass",
-  "Start the app and navigate to /login",
-  "Submit login form and verify redirect to dashboard"
-]
-```
-
-```
-✅ npm test - All 24 tests passed
-✅ Navigate to /login - Page loads correctly
-✅ Submit form - Redirects to dashboard, session persists
-→ All validations passed → OK to mark completed
-```
-
-## Step 5: State Update (MANDATORY)
-
-**CRITICAL**: update state files BEFORE ending the session.
-
-### 5.1 Update item-list.json (archive if completed)
-
-**For completed items** — archive the full record to keep `item-list.json` lean:
-
-```json
-// Step A: Append the FULL item record to 00-current/item-list-archive.json
-{
-  "id": "ITEM-003",
-  "category": "implementation",
-  "description": "Implement user login page",
-  "complexity": "simple",
-  "priority": 3,
-  "validation_criteria": ["Run npm test...", "Navigate to /login...", "Submit form..."],
-  "rationale_for_order": "Comes after auth scaffold (ITEM-002).",
-  "status": "completed",
-  "completed_at": "2025-12-10T14:45:00Z",
-  "notes": "All tests passing, validated in dev environment"
-}
-
-// Step B: REMOVE the full record from the items array in item-list.json
-
-// Step C: ADD a compact summary to completed_summary in item-list.json
-{
-  "completed_summary": [
-    { "id": "ITEM-003", "description": "Implement user login page", "completed_at": "2025-12-10T14:45:00Z" }
-  ]
-}
-
-// Step D: Update metadata
-{
-  "metadata": {
-    "total_items": 15,
-    "completed": 4,
-    "in_progress": 0,
-    "blocked": 0,
-    "pending": 10
-  }
-}
-```
-
-**For blocked items** — keep in `item-list.json` (no archival):
-
-```json
-{
-  "id": "ITEM-005",
-  "status": "blocked",
-  "completed_at": null,
-  "notes": "Blocked: Waiting for API credentials from user."
-}
-```
-
-```json
-{
-  "metadata": {
-    "total_items": 15,
-    "completed": 3,
-    "in_progress": 0,
-    "blocked": 1,
-    "pending": 11
-  }
-}
-```
-
-### 5.2 Update progress.log
-
-Append a new session entry (note the `###` heading to avoid polluting
-document outline when this template is rendered as docs):
-
-```markdown
-### Session N - 2025-12-10 14:00
-**Phase**: Execution
-**Duration**: ~45 minutes
-**Agent**: [Claude Code / ChatGPT / Gemini / etc.]
-
-**Item**: ITEM-003 - Implement user login page
-**Status**: ✅ Completed
-
-**Work Performed**:
-1. Created login.tsx component with form validation
-2. Integrated with authentication API
-3. Added error handling for invalid credentials
-4. Implemented redirect to dashboard on success
-
-**Validation Results**:
-- ✅ npm test - All 24 tests passed
-- ✅ Navigate to /login - Page loads correctly
-- ✅ Submit valid credentials - Redirects to dashboard
-- ✅ Submit invalid credentials - Shows error message
-
-**State Updates**:
-- ITEM-003: in_progress → completed
-- metadata.completed: 3 → 4
-- metadata.in_progress: 1 → 0
-
-**Session Log**: [[002_2025-12-10_claude_session-log-item-003]]
-
-**Next Session Recommendation**: ITEM-004 - Implement password reset flow
-
----
-```
-
-### 5.3 Create session log in 30-logs/
-
-```bash
-# Naming: XXX_YYYY-MM-DD_<agent>_session-log-<item-description>.md
-touch 30-logs/002_2025-12-10_claude_session-log-item-003-login-page.md
-```
-
-Include:
-- YAML frontmatter (`Type: session-log`, `Status: Active`, `Author`, `Created`)
-- Full session details
-- Work performed
-- All validation results
-- Blockers encountered
-- Wiki links to related documents
-
-See `assets/session-log.template.md` for the complete format.
-
-### 5.4 Commit changes (if using Git)
-
-```bash
-git add 00-current/item-list.json 00-current/item-list-archive.json \
-        00-current/progress.log 30-logs/
-git commit -m "Complete ITEM-003: Implement user login page
-
-- Created login component with validation
-- Integrated authentication API
-- All tests passing
-- Validated in dev environment"
-```
-
-## Step 6: Session Summary
-
-Report to user:
-
-```markdown
-✅ **Session Complete**
-
-**Item**: ITEM-003 - Implement user login page
-**Status**: Completed
-**Validation**: All checks passed
-
-**Progress**:
-- Completed: 4/15 (26.7%)
-- Remaining: 11 items
-- Blocked: 0 items
-
-**Files Updated**:
-- 00-current/item-list.json
-- 00-current/item-list-archive.json (if item completed)
-- 00-current/progress.log
-- 30-logs/002_2025-12-10_claude_session-log-item-003-login-page.md
-
-**Next Session**: Start with ITEM-004 - Implement password reset flow
-
-📖 See 00-current/progress.log for detailed session history
-📖 See 30-logs/ for full session logs
-```
-
-For `complexity: complex` items completed via `/task-relay deep`, consider
-suggesting `/task-relay learn` to extract lessons from any user hand-edits.

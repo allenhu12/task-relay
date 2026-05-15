@@ -16,7 +16,7 @@ Real-world examples of item decomposition for different types of assignments.
 - UI Components (15 items)
 - Testing (5 items)
 
-### Sample Items:
+### Sample Items (v1.3 shape with tasks[]):
 
 ```json
 {
@@ -32,7 +32,27 @@ Real-world examples of item decomposition for different types of assignments.
   ],
   "status": "pending",
   "completed_at": null,
-  "notes": ""
+  "notes": "",
+  "working_dir": null,
+  "files": [],
+  "tasks": [
+    {
+      "id": "TASK-001-01",
+      "description": "Run npx create-next-app with TypeScript flag",
+      "status": "pending",
+      "validation_steps": ["npm install completes without errors", "TypeScript config file exists"],
+      "completed_at": null,
+      "notes": ""
+    },
+    {
+      "id": "TASK-001-02",
+      "description": "Install and configure Tailwind CSS",
+      "status": "pending",
+      "validation_steps": ["Dev server starts on port 3000", "Tailwind CSS applies styling"],
+      "completed_at": null,
+      "notes": ""
+    }
+  ]
 }
 ```
 

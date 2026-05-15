@@ -3,83 +3,85 @@ Type: session-log
 Status: Active
 Author: {AUTHOR}
 Created: {YYYY-MM-DD}
+Item: {ITEM_ID}
 ---
 
-# Session Log: {ITEM_ID} - {ITEM_DESCRIPTION}
+# Item Log: {ITEM_ID} - {ITEM_DESCRIPTION}
 
-## Session Info
-
-| Field | Value |
-|-------|-------|
-| Session # | {SESSION_NUMBER} |
-| Date | {YYYY-MM-DD} |
-| Time | {HH:MM} |
-| Duration | ~{XX} minutes |
-| Phase | Execution |
-| Agent | {claude / cursor / gemini / etc.} |
+This file lives at `20-working/{ITEM_ID}/log.md`. It is initialized when the
+item first transitions to `in_progress` and updated after each task.
 
 ---
 
 ## Item Details
 
-**Item ID**: {ITEM_ID}
-**Description**: {ITEM_DESCRIPTION}
-**Category**: {CATEGORY}
-**Priority**: {PRIORITY}
+| Field | Value |
+|-------|-------|
+| **Item ID** | {ITEM_ID} |
+| **Description** | {ITEM_DESCRIPTION} |
+| **Category** | {CATEGORY} |
+| **Priority** | {PRIORITY} |
+| **Started** | {YYYY-MM-DD} |
 
 ---
 
-## Work Performed
+## Tasks
 
+| Task ID | Description | Status | Completed |
+|---------|-------------|--------|-----------|
+| TASK-{NNN}-01 | {task description} | pending | — |
+
+---
+
+## Session Entries
+
+<!-- Append a new entry after each work session. -->
+
+### {YYYY-MM-DD} — {AGENT}
+
+**Tasks worked this session**: TASK-{NNN}-01
+
+**Work performed**:
 1. {Step 1 description}
 2. {Step 2 description}
-3. {Step 3 description}
+
+**Task validation results**:
+
+| Task | Step | Result | Notes |
+|------|------|--------|-------|
+| TASK-{NNN}-01 | {Validation step 1} | Pass/Fail | {Details} |
+
+**Task outcome**: TASK-{NNN}-01 → {completed / blocked / cancelled}
+
+**Blockers**: {None encountered / List any blockers}
+
+**Files created/modified**:
+- `{file path}`
 
 ---
 
-## Validation Results
+## Item Validation Results
+
+<!-- Fill in when all tasks are done and item-level validation is run. -->
 
 | Step | Result | Notes |
 |------|--------|-------|
-| {Validation step 1} | Pass/Fail | {Details} |
-| {Validation step 2} | Pass/Fail | {Details} |
-| {Validation step 3} | Pass/Fail | {Details} |
+| {Item-level validation step 1} | Pass/Fail | {Details} |
 
 **Overall Result**: {All Passed / X of Y Passed / Blocked}
 
 ---
 
-## State Updates
+## Item Outcome
 
-| File | Change |
-|------|--------|
-| `item-list.json` | {ITEM_ID}: {old_status} → {new_status} |
-| `item-list.json` | metadata.completed: {X} → {Y} |
-| `item-list.json` | metadata.in_progress: {X} → {Y} |
-
----
-
-## Blockers
-
-{None encountered / List any blockers}
+**Status**: {completed / blocked / cancelled}
+**Completed at**: {YYYY-MM-DDTHH:MM:SSZ}
+**Notes**: {Any additional context or reason for cancellation}
 
 ---
 
 ## Related Documents
 
-- [[progress.log]] - Updated with session summary
-- [[item-list.json]] - Updated item status
+- [[00-current/progress.log]] - Session history
+- [[00-current/item-list.json]] - Item status
 - {Other related documents}
-
----
-
-## Next Session Recommendation
-
-**Recommended Item**: {NEXT_ITEM_ID} - {NEXT_ITEM_DESCRIPTION}
-**Reason**: {Why this item is next priority}
-
----
-
-## Notes
-
-{Any additional context, observations, or information for future sessions}

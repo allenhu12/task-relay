@@ -2,6 +2,17 @@
 
 A complete guide to using the Task Relay skill for managing complex, multi-session assignments with AI agents.
 
+> **What's new in v1.3.** Tasks-under-items, per-item workspaces, and deep-adapter removal:
+>
+> 1. **Tasks under items.** Every item now has `tasks[]` (≥1). Tasks are the checkpoint/resumability mechanism — they let sessions overflow gracefully without losing progress. Task IDs are `TASK-NNN-MM`; order is user-chosen, not sequential.
+> 2. **Per-item workspaces.** `20-working/<ITEM-ID>/` is created lazily when an item first goes `in_progress`. Each item's detailed log lives at `20-working/<ITEM-ID>/log.md`. The folder is stable (never auto-moved on completion).
+> 3. **`30-logs/` removed.** Session logs now live in the per-item folder. Non-item sessions (init, batch ingest, status checks) log to `progress.log` only. Rotated progress logs go to `90-archive/progress-log/`.
+> 4. **`/task-relay deep` removed.** The deep-task adapter is gone. Good decomposition (session-sized items with tasks) replaces it as the overflow mechanism.
+> 5. **Schema changes.** `completed_summary` → `terminal_summary` (with `status: completed|cancelled`); `metadata.cancelled` added; `cancelled` is a valid status for items and tasks (replaces `abandoned`).
+> 6. **Selection gate.** Item selection now requires explicit user confirmation before the item is marked `in_progress`. Task advancement also requires explicit user selection after each task.
+>
+> See the "v1.2 → v1.3 migration" note in SKILL.md Troubleshooting for a validation checklist.
+
 > **What's new in v1.2.** Two parts:
 >
 > 1. **Cleanup**: `SKILL.md` shrunk from ~1,290 → ~520 lines by extracting full phase procedures, state-file specs, and issues-backlog workflows into `references/`. Five phantom top-level headings fixed (better routing). Shell utilities (`generate-manifest.sh`, `rotate-progress-log.sh`) moved from `assets/` to `scripts/`. Trigger phrases tightened.
@@ -23,18 +34,19 @@ Task Relay is a skill that enables AI agents (Claude, ChatGPT, Gemini, etc.) to 
 Project/
 ├── AGENTS.md                  # Instructions for the AI agent
 ├── 00-current/               # THE TRUTH (State files)
-│   ├── progress.log          # History of all work performed
-│   ├── item-list.json        # What needs to be done and what's completed
+│   ├── progress.log          # Single global narrative — every session appends here
+│   ├── item-list.json        # Items (with tasks[]) + compact terminal summaries
 │   ├── memory.md             # Captured insights ("remember this")
 │   └── user-decision.md      # Your decisions (agent can't modify)
 ├── 05-plans/                 # THE BLUEPRINT (implementation plans, design docs)
 ├── 10-reference/             # Reference materials (includes 000_YYYY-MM-DD_spec.md)
-├── 20-working/               # Work-in-progress drafts, experiments
-├── 30-logs/                  # Detailed session logs
+├── 20-working/               # PER-ITEM WORKSPACES
+│   └── ITEM-001/             # Created lazily when item first goes in_progress
+│       └── log.md            # Detailed log for this item
 ├── 50-drafts/                # Long-form drafts toward a final deliverable
-├── 60-handoffs/              # Session-to-session or external handoff packages
+├── 60-handoffs/              # External handoff packages
 ├── 80-issues/                # Backlog (ideas, bugs, improvements)
-├── 90-archive/               # Old/obsolete files
+├── 90-archive/               # Old/obsolete files; rotated progress logs at 90-archive/progress-log/
 └── init.sh or init.md        # How to set up the environment
 ```
 
@@ -80,10 +92,11 @@ The agent will:
    - `00-current/progress.log`
    - `00-current/user-decision.md` (for your notes)
    - `00-current/memory.md` (captured insights)
-   - `05-plans/`, `50-drafts/`, `60-handoffs/`, `80-issues/`, `90-archive/`, `20-working/`, `30-logs/`, `10-reference/`
+   - `05-plans/`, `50-drafts/`, `60-handoffs/`, `80-issues/`, `90-archive/`, `20-working/`, `10-reference/`
    - `10-reference/000_YYYY-MM-DD_spec.md` (reference paths and URLs)
    - `AGENTS.md` (instructions for the agent)
    - `init.sh` (or `init.md` for non-code projects)
+   - Per-item `20-working/<ITEM-ID>/` folders are created lazily at execution time
 
 **What you'll see** (when you DID opt into decomposition):
 ```
@@ -381,9 +394,9 @@ Does this item depend on any other items that aren't done yet?
 ### Ending a Session
 
 The agent should automatically:
-- Update `00-current/item-list.json` with the completed item
+- Update `00-current/item-list.json` with the completed item and tasks
 - Append a session entry to `00-current/progress.log`
-- Create a detailed session log in `30-logs/`
+- Update `20-working/<ITEM-ID>/log.md` with task details
 - Commit changes if using Git
 - Provide a summary and next recommendation
 
@@ -403,13 +416,13 @@ tail -50 00-current/progress.log
 # See what's next
 cat 00-current/item-list.json | grep -A 3 '"status": "pending"' | head -20
 
-# Review detailed session logs
-ls -la 30-logs/
+# Review per-item logs
+ls -la 20-working/
 ```
 
 **Track in Git** (highly recommended):
 ```bash
-git add 00-current/ 30-logs/
+git add 00-current/ 20-working/ITEM-012/
 git commit -m "Session 5: Completed ITEM-012 - Authentication middleware"
 ```
 
@@ -640,7 +653,7 @@ I lost the state files. Here's what I remember was completed:
 - ITEM-010 and ITEM-011
 
 Can you help me reconstruct 00-current/item-list.json based on this?
-Also check 30-logs/ for detailed session logs that may help recover state.
+Also check 20-working/ for per-item log.md files that may help recover state.
 ```
 
 ### Problem: "Progress feels slow"
@@ -696,9 +709,9 @@ When initializing or adding new items, the agent now follows five rules (full re
 2. **Functionality and tests are separate items.** Never bundle code + tests in one item.
 3. **Ordering guarantees compilability.** At the end of every item, the project must still compile and pass existing tests.
 4. **Every item cites why it comes here.** New `rationale_for_order` field — references a KB entry, source file, or prior item.
-5. **Every item carries a `complexity` flag.** Either `simple` (handled inline) or `complex` (routed to `/task-relay deep`).
+5. **Every item carries a `complexity` flag.** Either `simple` (handled inline) or `complex` (needed deeper treatment). *Note: in v1.3, the `complexity` flag is deprecated — use item sizing (session-sized items + tasks[]) instead.*
 
-**New item fields**: `complexity`, `depends_on`, `rationale_for_order`. The `validation_steps` field now has an alias `validation_criteria` (both accepted; `validation_criteria` is canonical going forward).
+**New item fields** (v1.1): `complexity`, `depends_on`, `rationale_for_order`. The `validation_steps` field is canonical (deprecated alias `validation_criteria` still accepted for backwards compatibility).
 
 **Legacy items** without these fields default to `complexity: simple` and `rationale_for_order: "(legacy item, no rationale recorded)"`. No migration required.
 
@@ -769,28 +782,20 @@ Skipped automatically for items that ended `blocked` or `cancelled` (those need 
 
 Full procedure: `references/learn-workflow.md`.
 
-### 5. `/task-relay deep ITEM-XXX` — deep-task adapter
+### 5. Tasks under items — overflow-safe execution
 
-For items flagged `complexity: complex`, hand them off to the `deep-task` skill via a file-shaped contract. Deep-task runs its own four-phase pipeline (design → plan-review-gate → execution → verify) inside `20-working/ITEM-XXX/` and writes back a `task-result.yaml` that task-relay ingests.
+Items now have `tasks[]` (≥1). Tasks are the checkpoint and resumability mechanism — if context fills before an item finishes, completed tasks stay recorded and the next session resumes exactly where you left off. This replaces the old `/task-relay deep` adapter.
 
-**Usage**:
-```
-/task-relay deep ITEM-005
-```
+**How it works:**
+- Decompose each item into 2–5 concrete tasks at the time you create the item.
+- Each session works through tasks one at a time — the **user selects** which task to do next after each one completes.
+- If context fills mid-item, the agent writes a handoff note to `progress.log` and the next session picks up the `in_progress` task.
+- Task IDs: `TASK-<item-number>-<task-number>` (e.g. `TASK-005-01`).
 
-The agent will:
-1. Materialize `20-working/ITEM-005/task-input.yaml` from the item (template: `assets/task-input.template.yaml`).
-2. Mark the item `in_progress`; log session start.
-3. Invoke `/deep-task` on the workdir. **Task-relay stays out of the workdir** while deep-task owns it.
-4. On exit, ingest `task-result.yaml`:
-   - `completed` → archive workdir, propose `lessons[]` to `memory.md`.
-   - `blocked` → leave workdir in `20-working/` so you can inspect.
-   - `abandoned` → confirm with you before applying.
-5. Write a session log to `30-logs/` and (optionally) suggest `/task-relay learn`.
-
-**Important**: do *not* route every item through deep-task. Honor the `complexity` flag. Simple items should be executed inline as usual. Requires the `deep-task` skill to be installed.
-
-Full procedure: `references/deep-adapter.md`.
+**Key rules:**
+- The agent never auto-advances to the next task — it always asks you.
+- A `blocked` task doesn't block the item; you can pick another task.
+- A `cancelled` task is terminal and requires a `notes` explanation.
 
 ## Advanced Patterns
 
@@ -864,7 +869,7 @@ If you're unsure about approach:
 
 **A**: Yes, but carefully:
 - Can change: `status`, `notes`, `completed_at`
-- Don't change: `id`, `description`, `priority`, `validation_steps` / `validation_criteria`, `category`, `complexity`, `depends_on`, `rationale_for_order`
+- Don't change: `id`, `description`, `priority`, `validation_steps`, `category`, `tasks[].id`, `tasks[].description`
 
 If you need to change item definitions, tell the agent:
 ```
@@ -979,15 +984,14 @@ Happy building! =�
 - **Examples**: See `references/examples.md` for real-world item breakdowns
 - **Checklists**: See `references/workflow-checklists.md` for detailed checklists
 - **Schema**: See `references/item-list-schema.json` for JSON validation
-- **Decomposition rules** (v1.1): See `references/decomposition-rules.md` for the five rules + examples
-- **Batch ingestion** (v1.1): See `references/batch-ingest.md` and `assets/task-input-batch.template.yaml`
+- **Decomposition rules** (v1.3): See `references/decomposition-rules.md` for six rules + examples (including session-sizing and task-sizing)
+- **Batch ingestion** (v1.1/v1.3): See `references/batch-ingest.md` and `assets/task-input-batch.template.yaml`
 - **Learn workflow** (v1.1): See `references/learn-workflow.md`
-- **Deep-task adapter** (v1.1): See `references/deep-adapter.md` and `assets/task-input.template.yaml`
 - **Initialization Phase** (v1.2): See `references/initialization-phase.md` for the full Steps 0–5 procedure
-- **Execution Phase** (v1.2): See `references/execution-phase.md` for the full Steps 1–6 procedure
-- **State File Specifications** (v1.2): See `references/state-file-specs.md`
+- **Execution Phase** (v1.3): See `references/execution-phase.md` for the full Steps 1–6 procedure (selection gate, task loop, archival)
+- **State File Specifications** (v1.3): See `references/state-file-specs.md`
 - **Issues Backlog workflows** (v1.2): See `references/issues-backlog.md`
-- **Scripts** (v1.2): `scripts/generate-manifest.sh` (was `assets/generate-manifest.sh`) and `scripts/rotate-progress-log.sh` (was `assets/rotate-progress-log.sh`)
+- **Scripts**: `scripts/generate-manifest.sh`, `scripts/rotate-progress-log.sh` (archives to `90-archive/progress-log/`)
 
 ## Getting Help
 

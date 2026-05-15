@@ -19,18 +19,39 @@ items:
     description: |
       <full description, multi-line allowed>
     category: "setup|implementation|testing|documentation|refactor|bugfix"
-    complexity: "simple"          # or "complex"
     priority: 1                    # lower = earlier
-    depends_on: []                 # ITEM-IDs or in-batch titles
-    validation_criteria:
+    validation_steps:              # item-level rollup checks
       - "<objective check 1>"
       - "<objective check 2>"
-    rationale_for_order: "<why this comes here; cite evidence>"
+    tasks:                         # optional; if absent, a single task is auto-derived
+      - description: "<first concrete sub-step>"
+        validation_steps:
+          - "<task-level check>"
+      - description: "<second concrete sub-step>"
+        validation_steps:
+          - "<task-level check>"
 
-  # Delta-only example operations:
+  # Delta item-level operations:
   # - op: modify
   #   target: ITEM-005
   #   patch:
   #     description: "<new description>"
   # - op: remove
   #   target: ITEM-007
+  #   notes: "<reason for removal / cancellation>"
+
+  # Delta task-level operations:
+  # - op: add_task
+  #   target: ITEM-005
+  #   task:
+  #     description: "<new task description>"
+  #     validation_steps: ["<check>"]
+  # - op: modify_task
+  #   target: ITEM-005
+  #   task: TASK-005-02
+  #   patch:
+  #     description: "<updated description>"
+  # - op: remove_task
+  #   target: ITEM-005
+  #   task: TASK-005-03
+  #   notes: "<reason>"

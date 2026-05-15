@@ -7,8 +7,7 @@ Full procedure for ingesting an Interface 3 batch into
 
 - After running `/project decompose`.
 - When the user hands you a `task-input-batch.yaml` produced elsewhere.
-- When applying a delta batch from a `## CHANGES` section in an updated
-  `<n>_design.md`.
+- When applying a delta batch of changes against an existing item-list.
 
 ## Inputs
 
@@ -26,18 +25,35 @@ alert the user.
 ### 2. For each item in `items[]`
 
 1. Assign next `ITEM-XXX` id (highest existing id in `items ∪
-   completed_summary`, +1).
+   terminal_summary`, +1).
 2. Verify required fields per Interface 3: `title`, `description`,
-   `complexity`, `priority`, `depends_on`, `validation_criteria` (≥1),
-   `rationale_for_order`.
-3. Map to `00-current/item-list.json` item format:
-   - Copy `id`, `category`, `description`, `priority`, `complexity`,
-     `depends_on`, `rationale_for_order`.
-   - `validation_steps = validation_criteria` (aliasing).
-   - `status: pending`, `completed_at: null`, `notes: ""`.
-4. **Resolve in-batch `depends_on` references** — items may refer to siblings
+   `priority`, `validation_steps` (≥1), and optionally `tasks[]`.
+3. **Tasks contract:**
+   - If the batch item has `tasks[]`, ingest them as-is. Assign task IDs as
+     `TASK-<item-number>-01`, `TASK-<item-number>-02`, etc. in order.
+   - If `tasks[]` is absent, **auto-derive a single task** from the item:
+     ```json
+     {
+       "id": "TASK-001-01",
+       "description": "<item description>",
+       "status": "pending",
+       "validation_steps": ["<same as item validation_steps>"],
+       "completed_at": null,
+       "notes": ""
+     }
+     ```
+4. Map to `00-current/item-list.json` item format:
+   - Copy `id`, `category`, `description`, `priority`.
+   - `validation_steps` is the canonical field name.
+   - `status: pending`, `completed_at: null`, `notes: ""`, `working_dir: null`, `files: []`.
+   - Include the resolved `tasks[]`.
+5. **Resolve in-batch `depends_on` references** — items may refer to siblings
    in the same batch; substitute the assigned IDs once known.
-5. Append to the `items` array.
+6. Append to the `items` array.
+
+**Session-size sanity note:** if any item's description suggests work that
+would take more than one session (e.g. "Implement and test the entire auth
+module"), flag it to the user with a suggestion to split before ingesting.
 
 ### 3. Update metadata counts
 
@@ -47,7 +63,7 @@ alert the user.
 ### 4. Log ingestion in `00-current/progress.log`
 
 ```markdown
-## Session N - YYYY-MM-DD HH:MM
+### Session N - YYYY-MM-DD HH:MM
 **Phase**: Ingestion (batch)
 **Source**: <path to task-input-batch.yaml>
 **Items added**: ITEM-AAA through ITEM-ZZZ (<count> total)
@@ -62,14 +78,23 @@ Prevents accidental re-ingestion; preserves audit trail.
 
 ## Delta batches
 
-When the batch has top-level `delta: true` (designer flow on `## CHANGES`),
-apply surgical updates:
+When the batch has top-level `delta: true`, apply surgical updates.
+
+### Item-level delta ops
 
 | Operation | How |
 |---|---|
-| `add` | Same as full ingestion — append new items. |
-| `modify` | Replace the named item's fields. Preserve `id`; preserve `status` if non-pending. |
-| `remove` | Mark the named item `status: cancelled`, note `"removed by delta batch <date>"`. Never delete (audit trail). |
+| `op: add` | Same as full ingestion — append new items (with tasks[]). |
+| `op: modify` | Replace the named item's fields. Preserve `id`; preserve `status` if non-pending. |
+| `op: remove` | **Whole-item cancellation**: mark item `status: cancelled`, `notes: "removed by delta batch <date>"`. Cascade: set every non-completed task to `cancelled`. Archive to `terminal_summary`. Never hard-delete. |
+
+### Task-level delta ops
+
+| Operation | How |
+|---|---|
+| `op: add_task` | Target: `ITEM-XXX`. Append a new task with the next sequential task number. |
+| `op: modify_task` | Target: `ITEM-XXX`, task: `TASK-XXX-YY`. Replace description or status fields. |
+| `op: remove_task` | Target: `ITEM-XXX`, task: `TASK-XXX-YY`. Set task `status: cancelled`, `notes: "removed by delta batch <date>"`. Never hard-delete tasks. |
 
 **Completed items (`status: completed`) MUST NEVER be modified or removed
 by a delta.** If a delta would change a completed item, log a warning and
@@ -87,10 +112,11 @@ skip it.
 ## Acceptance criteria
 
 - A valid `task-input-batch.yaml` produces correctly-numbered,
-  fully-populated items in `item-list.json`.
-- Metadata counts match the new state.
+  fully-populated items in `item-list.json`, each with ≥1 task.
+- Items without `tasks[]` get a single auto-derived task.
+- Metadata counts match the new state (including `cancelled` if any removals).
 - The batch file is archived, not left in the working folder.
-- Delta batches preserve completed items.
+- Delta batches preserve completed items and use the new task-level ops.
 - Schema-version mismatches are refused, not silently coerced.
 
 ## Template

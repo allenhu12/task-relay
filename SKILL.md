@@ -1,8 +1,8 @@
 ---
 name: task-relay
-description: Manage complex, multi-session assignments using persistent state files, like a relay race where each session picks up where the last left off. This skill should be used when users need to work on assignments that span multiple sessions, require tracking progress, or involve many discrete items. Triggers include keywords like "task relay", "multi-session", "track progress", "continue work", "manage items", "incremental progress", "/task-relay deep", "/task-relay learn", "task-relay retrospective", "deep-task adapter", "complex item handoff", "task-input-batch.yaml", "batch ingest items".
+description: Manage complex, multi-session assignments using persistent state files, like a relay race where each session picks up where the last left off. This skill should be used when users need to work on assignments that span multiple sessions, require tracking progress, or involve many discrete items. Triggers include keywords like "task relay", "multi-session", "track progress", "continue work", "manage items", "incremental progress", "/task-relay learn", "task-relay retrospective", "task-input-batch.yaml", "batch ingest items".
 license: MIT
-version: 1.2
+version: 1.3
 ---
 
 # Task Relay
@@ -56,22 +56,26 @@ Task Relay uses a 9-zone folder system for organizing project artifacts:
 {PROJECT_NAME}/
 ├── AGENTS.md                  # Instructions for the Agent (copied from template)
 ├── 00-current/               # THE TRUTH (State files)
-│   ├── progress.log          # Progress status and session history
-│   ├── item-list.json        # Active items + compact completed summaries
-│   ├── item-list-archive.json # Full records of completed items (read on demand)
+│   ├── progress.log          # Single global narrative spine — every session appends here
+│   ├── item-list.json        # Active items (with tasks[]) + compact terminal summaries
+│   ├── item-list-archive.json # Full records of terminal items (read on demand)
 │   ├── memory.md             # Curated insights captured via "remember this" / "don't forget"
 │   └── user-decision.md      # User comments and decisions (READ-ONLY)
 ├── 05-plans/                 # THE BLUEPRINT (Implementation plans, design docs, planning artifacts)
 ├── 10-reference/             # Reference materials (progressive disclosure via MANIFEST.md)
 │   ├── MANIFEST.md           # Auto-generated index of all reference files (always read)
 │   └── 000_YYYY-MM-DD_spec.md # Project spec with paths and URLs (always read)
-├── 20-working/               # THE WORKBENCH (Temporary drafts, experiments, work-in-progress)
-├── 30-logs/                  # THE HISTORY (Session logs)
+├── 20-working/               # PER-ITEM WORKSPACES
+│   └── ITEM-001/             # Created lazily when item first goes in_progress
+│       ├── log.md            # Detailed log for this item (tasks, decisions, blockers)
+│       └── ...               # Any other files produced while working this item
 ├── 50-drafts/                # THE LONG-FORM (Drafts being prepared toward a final deliverable)
 ├── 60-handoffs/              # THE HANDOFFS (Session-to-session or external handoff packages)
 ├── 80-issues/                # THE BACKLOG (Ideas, bugs, improvements)
-└── 90-archive/               # Obsolete files
+└── 90-archive/               # Obsolete files; rotated progress.log archives at 90-archive/progress-log/
 ```
+
+**Note**: `30-logs/` no longer exists as a zone. Detailed logs live in `20-working/<ITEM-ID>/log.md`; non-item session notes (init, batch ingest, status checks) go to `progress.log` only.
 
 ### Zone Access Rules
 
@@ -80,12 +84,11 @@ Task Relay uses a 9-zone folder system for organizing project artifacts:
 | `00-current/` | Current truth - state, tasks, decisions | Read for context; Update (except `user-decision.md`) |
 | `05-plans/` | Implementation plans, design docs, planning artifacts | Read/Write |
 | `10-reference/` | Reference documents, specs, external materials. Uses MANIFEST.md for progressive disclosure | Read-only (except MANIFEST.md which agent may regenerate) |
-| `20-working/` | Temporary drafts, experiments, work-in-progress | Read/Write |
-| `30-logs/` | Session logs with YAML frontmatter | Write-only (append) |
+| `20-working/<ITEM-ID>/` | Per-item workspace; durable across completion/cancellation; manual cleanup only | Read/Write |
 | `50-drafts/` | Long-form drafts being prepared toward a final deliverable | Read/Write |
-| `60-handoffs/` | Session-to-session or external handoff packages | Read/Write |
+| `60-handoffs/` | External handoff packages (different purpose from session handoffs) | Read/Write |
 | `80-issues/` | Backlog of ideas, bugs, and improvements | Read/Write (on user request only) |
-| `90-archive/` | Obsolete/superseded files | Move files here when obsolete |
+| `90-archive/` | Obsolete/superseded files; `90-archive/progress-log/` holds rotated progress logs | Move files here when obsolete |
 
 ### File Naming Convention
 
@@ -180,13 +183,13 @@ User can explicitly specify phase:
 Run this workflow when starting a NEW assignment (no state files exist).
 
 **Steps (summary).**
-- **Step 0** — Create the 9-zone folder structure (`00-current/`, `05-plans/`, `10-reference/`, `20-working/`, `30-logs/`, `50-drafts/`, `60-handoffs/`, `80-issues/`, `90-archive/`); copy `AGENTS.md`, `user-decision.md`, `memory.md`, spec template; run `scripts/generate-manifest.sh ./10-reference`.
+- **Step 0** — Create the 9-zone folder structure (`00-current/`, `05-plans/`, `10-reference/`, `20-working/`, `50-drafts/`, `60-handoffs/`, `80-issues/`, `90-archive/`); copy `AGENTS.md`, `user-decision.md`, `memory.md`, spec template; run `scripts/generate-manifest.sh ./10-reference`. Per-item `20-working/<ITEM-ID>/` folders are created **lazily** at execution, not here.
 - **Step 1** — Analyze the user's requirements; clarify scope; record reference paths in `10-reference/000_*_spec.md`.
 - **Step 1.5** — *Knowledge Front-Loading* (highly recommended): structured Q&A, one question at a time, update reference docs after each answer. Highest-ROI activity at project start.
-- **Step 2** — Decompose into items **only if the user explicitly asks** ("generate items", "decompose the project", "fill in the item list"). Otherwise leave `item-list.json` with an empty `items: []` array — the user will populate it later (manually, via `/task-relay` batch ingestion, or by asking to decompose in a later session). When you do decompose, apply the **five decomposition rules** (see `references/decomposition-rules.md`).
-- **Step 3** — Create state files from `assets/` templates: `item-list.json` (starts empty unless Step 2 produced items), `item-list-archive.json`, `progress.log`, `init.sh`/`init.md`, initialization session log.
+- **Step 2** — Decompose into items **only if the user explicitly asks** ("generate items", "decompose the project", "fill in the item list"). When you do decompose, apply the decomposition rules (see `references/decomposition-rules.md`). Each item must have ≥1 task in `tasks[]`; a trivial item gets one task mirroring its description.
+- **Step 3** — Create state files from `assets/` templates: `item-list.json` (starts empty unless Step 2 produced items), `item-list-archive.json`, `progress.log`, `init.sh`/`init.md`, initialization entry in `progress.log`.
 - **Step 4** — Verify baseline (folders, state files, spec, run `init.sh`).
-- **Step 5** — Handoff: summarize Session 1; if items exist, recommend the first; otherwise note that the item list is empty pending user direction. Write a session log.
+- **Step 5** — Handoff: summarize Session 1; if items exist, recommend the first; otherwise note that the item list is empty pending user direction.
 
 Full procedure with all commands, templates, and acceptance criteria: see `references/initialization-phase.md`.
 
@@ -198,8 +201,9 @@ Full procedure with all commands, templates, and acceptance criteria: see `refer
 
 **Procedure (summary).**
 1. Validate `schema_version: 1`; assign ITEM-XXX ids; verify required fields per item.
-2. Append items, update metadata counts, log to `progress.log`, archive the batch file to `90-archive/`.
-3. For delta batches (`delta: true`), apply add/modify/remove ops; never touch completed items.
+2. If a batch item has `tasks[]`, ingest them as-is with TASK-NNN-MM ids. If absent, auto-derive a single `TASK-<NNN>-01` from the item description.
+3. Append items, update metadata counts, log to `progress.log`, archive the batch file to `90-archive/`.
+4. For delta batches (`delta: true`), apply add/modify/remove ops (see `references/batch-ingest.md` for task-level delta ops); never touch completed items.
 
 Full procedure, delta semantics, validation failures, and acceptance criteria: see `references/batch-ingest.md`. Template: `assets/task-input-batch.template.yaml`.
 
@@ -209,26 +213,42 @@ Run this workflow when CONTINUING an existing assignment (state files exist).
 
 **Steps (summary).**
 - **Step 1 — State Recovery** (CRITICAL): `tail -100 00-current/progress.log`; read `item-list.json`, `user-decision.md`, `memory.md`, spec file, and `10-reference/MANIFEST.md`. Do **NOT** load `item-list-archive.json` or progress-archive files speculatively. Run `./init.sh`. Full checklist: `references/execution-phase.md` § State Recovery.
-- **Step 2 — Item Selection**: pick exactly **one** item. Honor `next_override` if set (then clear); otherwise lowest `priority` pending. Mark `in_progress`; update metadata.
-- **Insert mid-execution** (when needed): new item with full v1.1 schema (`complexity`, `rationale_for_order`, etc.); optionally set `next_override`.
-- **Step 3 — Execution**: do the work, stay scoped to the one item. For `complexity: complex` items, consider `/task-relay deep` instead of inline execution.
-- **Step 4 — Validation** (CRITICAL): run every entry in `validation_criteria`. ONLY mark `completed` if ALL pass; otherwise fix or mark `blocked`.
-- **Step 5 — State Update** (MANDATORY): for completed items, move full record to `item-list-archive.json` and append a compact summary to `completed_summary` in `item-list.json`; for blocked, update in place. Append a session entry to `progress.log`. Create the `30-logs/` session log. Commit if using Git.
-- **Step 6 — Session Summary**: report progress, files updated, next item.
+- **Step 2 — Selection Gate** (read-only, then confirm before action):
+  - If an item is already `in_progress` (overflow from prior session): do NOT run item selection. If a task is `in_progress`, propose resuming that task; else list remaining `pending` tasks for the **user to choose**.
+  - Otherwise: identify the candidate item — honor `next_override` if set; else lowest-`priority` `pending` item; if all pending are `blocked` → report "nothing actionable" and stop.
+  - **STOP and confirm** before marking any item `in_progress`. Clear `next_override` only after the user confirms.
+  - **Status check is read-only** — report state + suggested next, never mark anything `in_progress`.
+- **Step 3 — Task Loop** (user-driven, Option B):
+  - Create `20-working/<ITEM-ID>/` folder lazily on first transition to `in_progress` (if not yet present).
+  - Present remaining `pending` tasks; **user selects** which task to run next. Agent does **not** auto-pick.
+  - Mark selected task `in_progress`; do the work; validate; mark `completed` / `blocked` / `cancelled`; **flush `item-list.json` immediately**.
+  - **STOP and ask again** — never auto-advance to the next task.
+  - If context fills before the item is done (overflow): record completed tasks in `item-list.json`; leave item `in_progress`; write handoff note to `progress.log`; end session. Next session resumes the `in_progress` task or user picks next.
+- **Step 4 — Validation** (CRITICAL): run every entry in `validation_steps`. ONLY mark `completed` if ALL pass; otherwise fix or mark `blocked`.
+- **Step 5 — Item Completion / Termination**:
+  - An item may be `completed` only when **every task is either `completed` or `cancelled`** AND item-level `validation_steps` all pass. Every `cancelled` task must carry a `notes` explanation.
+  - For **cancelled items**: require user confirmation; cascade — set every non-`completed` task to `cancelled` with `notes` referencing the item cancellation.
+  - For **terminal items** (completed or cancelled): move full record to `item-list-archive.json`; append compact entry to `terminal_summary` (with `status: completed|cancelled`); remove from `items[]`; update metadata. Append session/handoff note to `progress.log`.
+- **Step 6 — Session Summary**: report progress, files updated, next item or "nothing actionable".
 
 Full procedure with all commands, examples, algorithms, and acceptance criteria: see `references/execution-phase.md`.
 
+## Tasks under Items
 
-## Deep-Task Adapter (`/task-relay deep ITEM-XXX`)
+**Model summary.**
 
-**When to use.** Item has `complexity: complex`, or the user explicitly requests deeper treatment on a `simple` item. Otherwise execute inline — do not route every item through deep-task. This is the **only** coupling between task-relay and deep-task; all contact is via the file-shaped contract in `INTERFACES.md`.
-
-**Procedure (summary).**
-1. Materialize `20-working/<ITEM_ID>/task-input.yaml` (Interface 4) from the item; mark item `in_progress`; log session start.
-2. Invoke `/deep-task <WORKDIR>`. Task-relay stays out of the workdir until deep-task exits.
-3. Ingest `task-result.yaml` (Interface 5): branch on `status` (completed → archive workdir; blocked → leave in place; abandoned → confirm then archive). Propose `lessons[]` to `memory.md` per-lesson. Write a session log. Optionally suggest `/task-relay learn`.
-
-Full procedure, failure modes, anti-patterns, and acceptance criteria: see `references/deep-adapter.md`. Template: `assets/task-input.template.yaml`.
+- Every item has `tasks[]` (≥1). A trivial item has a single task.
+- Tasks are the checkpoint/resumability mechanism. Normal case: work through an item's tasks until the item is done. Overflow case: completed tasks stay recorded; next session resumes.
+- Task IDs: `TASK-<item-number>-<task-number>` (e.g. `TASK-001-01`, `TASK-001-02`). Numbering is identity, not mandated run order.
+- **Status enum** (items and tasks share one set): `pending | in_progress | completed | blocked | cancelled`.
+  - `blocked` — not terminal; user can pick another task.
+  - `cancelled` — terminal; `notes` is required explaining why.
+  - Deep's old `abandoned` outcome maps to `cancelled`. Do **NOT** introduce `abandoned`.
+- **At most one** `in_progress` task within the `in_progress` item. Task execution order is user-chosen.
+- **Item completion rollup**: every task must be `completed` or `cancelled`; every `cancelled` task must have `notes`; all item-level `validation_steps` must pass.
+- **Item `blocked` rule**: an item is `blocked` only when every non-terminal task is `blocked`, or the user explicitly blocks it. A single blocked task does not block the item.
+- **Whole-item `cancelled` lifecycle**: user-initiated or agent-proposed → **user-confirmed**; task cascade; archive to `terminal_summary` with `status: cancelled`; update `metadata.cancelled`.
+- **`metadata.cancelled`** is required. All status counts must sum to `total_items`.
 
 ## Issues Backlog (`80-issues/`)
 
@@ -239,7 +259,7 @@ Lightweight backlog for ideas, bugs, and improvements discovered during work. Is
 **Trigger phrases → workflow**:
 - "log this issue" / "record this idea" / "add to backlog" → **Capture**: create `80-issues/<seq>_issue_<name>.md` from `assets/issue.template.md`; fill frontmatter; resume current work.
 - "review backlog" / "show issues" → **Review**: list open issues in a table; user decides promote / dismiss / defer per issue.
-- "promote issue NNN to an item" → **Promote**: create new item in `item-list.json` (full v1.1 schema); update issue frontmatter `Status: promoted`, `Promoted_to: ITEM-XXX`; log to `progress.log`.
+- "promote issue NNN to an item" → **Promote**: create new item in `item-list.json` (with ≥1 task); update issue frontmatter `Status: promoted`, `Promoted_to: ITEM-XXX`; log to `progress.log`.
 - Dismiss / Defer: update issue `Status` only; file stays in `80-issues/`.
 
 Full procedures, templates, and examples: see `references/issues-backlog.md`.
@@ -294,7 +314,7 @@ None. Memory is curated, not noise. The user prunes manually when entries become
 **When to use.** User runs `/task-relay learn` (optionally `/task-relay learn ITEM-XXX`) after an item is marked `completed`, to extract lessons from any user hand-edits and propagate them into `memory.md` and not-yet-started items. Skip for `blocked` or `cancelled` items.
 
 **Procedure (summary).**
-1. Diff `02_execution.md` plan vs. current source code; filter out fixing-attempts and documented updates; what remains is user hand-edits.
+1. Diff the execution plan in `20-working/<ITEM-ID>/log.md` vs. current source code; filter out fixing-attempts and documented updates; what remains is user hand-edits.
 2. Categorize each hand-edit (Gotcha / Decision / Preference / Fact); build a candidate lessons list with evidence.
 3. Per user confirmation, write each lesson to `memory.md` (via capture workflow with `[N=k]` counter) and append `[LEARNED ...]` notes to semantically-relevant pending items.
 
@@ -303,8 +323,8 @@ Full procedure, categorization rules, anti-patterns, and acceptance criteria: se
 ## Core Rules (NEVER Violate)
 
 🚫 **NEVER modify item definitions**
-- Do NOT change: id, category, description, priority, validation_steps
-- ONLY change: status, completed_at, notes, metadata
+- Do NOT change: id, category, description, priority, validation_steps, tasks[].id, tasks[].description
+- ONLY change: status, completed_at, notes, working_dir, files, metadata, tasks[].status, tasks[].completed_at, tasks[].notes
 
 🚫 **NEVER modify user-decision.md**
 - This file is maintained exclusively by the user
@@ -322,35 +342,48 @@ Full procedure, categorization rules, anti-patterns, and acceptance criteria: se
 - Prevents context exhaustion
 - Ensures quality validation
 
+🚫 **NEVER auto-advance to the next task**
+- After each task completes (or is cancelled/blocked), STOP and ask the user which task to run next
+- Task execution order is user-chosen; the agent only proposes, never auto-picks
+- Exception: if a task is `in_progress` at session start (overflow), propose resuming that specific task
+
+🚫 **NEVER execute without confirming item selection**
+- Identify the candidate item and STOP; present it to the user for confirmation
+- Mark `in_progress` ONLY after user confirms
+- A status check is strictly read-only — never mark anything `in_progress` during a status check
+
 🚫 **NEVER mark completed without validation**
-- ALL validation_steps must pass
-- Document validation results
-- If any fail, fix or mark blocked
+- ALL item-level `validation_steps` must pass
+- ALL tasks must be `completed` or `cancelled`; every `cancelled` task must have `notes`
+- If any check fails, fix or mark blocked
 
 🚫 **NEVER skip state updates**
-- Always update `00-current/item-list.json`
-- Always update `00-current/item-list-archive.json` when completing an item
+- Flush `item-list.json` after every task status change (not just at item completion)
+- Always update `00-current/item-list-archive.json` when an item becomes terminal
 - Always append to `00-current/progress.log`
-- Always create session log in `30-logs/`
 - Do this BEFORE session ends
 
 🚫 **NEVER delete items from item-list.json**
-- If item is no longer needed, add note explaining why
-- Mark as completed or blocked, don't delete
+- Cancelled items are archived to `terminal_summary`, not deleted
 - Maintains audit trail
+
+✅ **Create per-item folder lazily**
+- `20-working/<ITEM-ID>/` is created when the item first transitions to `in_progress`
+- Never create it eagerly at batch ingest or decomposition time
+- The folder is **stable** (never auto-moved on completion); `working_dir` in the archive records the stable path
 
 ## State File Specifications
 
 | File | Purpose | Template |
 |---|---|---|
-| `00-current/item-list.json` | Active items + compact completed summaries | `assets/item-list.template.json` |
-| `00-current/item-list-archive.json` | Full records of completed items (read on demand) | `assets/item-list-archive.template.json` |
-| `00-current/progress.log` | Session history | `assets/progress.template.log` |
+| `00-current/item-list.json` | Active items (with tasks[]) + compact terminal summaries | `assets/item-list.template.json` |
+| `00-current/item-list-archive.json` | Full records of terminal items (read on demand) | `assets/item-list-archive.template.json` |
+| `00-current/progress.log` | Single global session narrative | `assets/progress.template.log` |
 | `00-current/user-decision.md` | User decisions (**read-only** for agents) | `assets/user-decision.template.md` |
 | `00-current/memory.md` | Captured insights with `[N=k]` counters | `assets/memory.template.md` |
 | `10-reference/MANIFEST.md` | Index of reference files (auto-generated) | `scripts/generate-manifest.sh` |
 | `10-reference/000_YYYY-MM-DD_spec.md` | Project spec / reference paths | `assets/spec.template.md` |
-| `30-logs/*.md` | Per-session detailed logs | `assets/session-log.template.md` |
+| `20-working/<ITEM-ID>/log.md` | Per-item detailed log (tasks, decisions, blockers) | `assets/session-log.template.md` (repurposed) |
 | `init.sh` / `init.md` | Environment bootstrap | `assets/init.template.{sh,md}` |
 
 JSON schema for `item-list.json`: `references/item-list-schema.json`.
@@ -367,7 +400,7 @@ Actively maintain project organization:
 |--------|--------|
 | `Obsolete` | Move file to `90-archive/` |
 | `Superseded` | Keep in place, update `Superseded_by` in frontmatter |
-| `Active` | Keep in `20-working/` or promote to `00-current/` if finalized |
+| `Active` | Keep in `20-working/<ITEM-ID>/` or promote to `00-current/` if finalized |
 
 ### When Replacing Documents
 
@@ -378,7 +411,7 @@ Actively maintain project organization:
 ### Wiki Linking
 
 Use `[[document-name]]` syntax to link related documents:
-- Link session logs from progress.log entries
+- Link item logs from progress.log entries
 - Reference related working documents
 - Create interconnected knowledge base
 
@@ -389,37 +422,35 @@ This skill includes bundled resources to make implementation easier:
 ### assets/
 Template files for creating new task relay assignments:
 - `AGENTS.template.md` - Agent instructions copied to project root
-- `item-list.template.json` - Template for 00-current/item-list.json (active items + completed summaries)
-- `item-list-archive.template.json` - Template for 00-current/item-list-archive.json (completed item full records)
+- `item-list.template.json` - Template for 00-current/item-list.json (active items with tasks[] + terminal summaries)
+- `item-list-archive.template.json` - Template for 00-current/item-list-archive.json (terminal item full records)
 - `progress.template.log` - Template for 00-current/progress.log
 - `user-decision.template.md` - Template for 00-current/user-decision.md
 - `memory.template.md` - Template for 00-current/memory.md (curated insights captured via "remember this")
-- `session-log.template.md` - Template for session logs in 30-logs/
+- `session-log.template.md` - Template for per-item `20-working/<ITEM-ID>/log.md`
 - `spec.template.md` - Template for 10-reference/000_YYYY-MM-DD_spec.md
 - `issue.template.md` - Template for backlog issues in 80-issues/
 - `init.template.sh` - Template for code projects
 - `init.template.md` - Template for non-code assignments
-- `task-input.template.yaml` - Interface 4 shape (consumed by `/task-relay deep`)
 - `task-input-batch.template.yaml` - Interface 3 shape (consumed by batch ingestion)
 
 ### scripts/
 Executable utilities:
 - `generate-manifest.sh` - Generates / regenerates `10-reference/MANIFEST.md` from file frontmatters
-- `rotate-progress-log.sh` - Rotates `00-current/progress.log` to `30-logs/progress-archive-YYYY-MM-DD.log` when it grows past thresholds (default 1000 lines / 200 KB), seeds a fresh log with a continuity header, and regenerates `30-logs/PROGRESS-ARCHIVE-MANIFEST.md`. Run with `--manifest-only` to rebuild the manifest only.
+- `rotate-progress-log.sh` - Rotates `00-current/progress.log` to `90-archive/progress-log/progress-archive-YYYY-MM-DD.log` when it grows past thresholds (default 1000 lines / 200 KB), seeds a fresh log with a continuity header, and regenerates `90-archive/progress-log/PROGRESS-ARCHIVE-MANIFEST.md`. Run with `--manifest-only` to rebuild the manifest only. **State-recovery rule: only ever read `00-current/progress.log`; NEVER auto-read `90-archive/`.**
 
 ### references/
 Additional documentation:
 - `item-list-schema.json` - JSON schema for validation
 - `workflow-checklists.md` - Detailed checklists for both phases
-- `examples.md` - Real-world examples of item decomposition
-- `decomposition-rules.md` - The five v1.1 decomposition rules + examples
+- `examples.md` - Real-world examples of item+tasks decomposition
+- `decomposition-rules.md` - Decomposition rules (item sizing, task sizing) + examples
 - `initialization-phase.md` - Full Initialization Phase procedure
-- `execution-phase.md` - Full Execution Phase procedure
+- `execution-phase.md` - Full Execution Phase procedure (selection gate, task loop, archival)
 - `state-file-specs.md` - Full per-file rules and invariants
 - `issues-backlog.md` - Full Issues Backlog workflows
-- `batch-ingest.md` - Full batch-ingestion procedure (Interface 3)
+- `batch-ingest.md` - Full batch-ingestion procedure (Interface 3, including tasks[] contract)
 - `learn-workflow.md` - Full `/task-relay learn` retrospective
-- `deep-adapter.md` - Full `/task-relay deep` adapter procedure
 
 ## Common Anti-Patterns
 
@@ -435,18 +466,28 @@ GOOD: "Implemented login only (ITEM-003). Logout (ITEM-007)
 ❌ **Premature Completion**
 ```
 BAD:  "Login page is done, looks good to me"
-      (skipped validation steps)
+      (skipped validation steps, tasks still pending)
 
-GOOD: "Ran all 3 validation steps, all passed. Marking
-       ITEM-003 as completed"
+GOOD: "All tasks completed, ran all 3 item-level validation steps,
+       all passed. Marking ITEM-003 as completed"
+```
+
+❌ **Auto-Advancing Tasks**
+```
+BAD:  Agent completes TASK-001-01 and immediately starts TASK-001-02
+      without asking the user
+
+GOOD: Agent marks TASK-001-01 completed, flushes JSON, then asks:
+      "Task 1 done. Remaining tasks: TASK-001-02 (implement X),
+       TASK-001-03 (write tests). Which task should we do next?"
 ```
 
 ❌ **Vague Progress Notes**
 ```
 BAD:  "Worked on some items, made progress"
 
-GOOD: "Completed ITEM-003 (login page). Validation: all
-       tests pass, UI renders correctly, auth flow works"
+GOOD: "Completed TASK-003-02 (add login form validation).
+       Item ITEM-003 has 1 task remaining."
 ```
 
 ❌ **Ignoring Blockers**
@@ -454,7 +495,7 @@ GOOD: "Completed ITEM-003 (login page). Validation: all
 BAD:  "Can't get API credentials, but I'll mark this done
        and move on"
 
-GOOD: "Marking ITEM-005 as blocked: need production API
+GOOD: "Marking TASK-005-01 as blocked: need production API
        credentials from user to test auth integration"
 ```
 
@@ -484,7 +525,7 @@ cat 00-current/item-list.json | grep -B 5 '"status": "in_progress"'
 
 **Solution**:
 ```bash
-# Mark as blocked in 00-current/item-list.json
+# Mark item as blocked in 00-current/item-list.json
 {
   "status": "blocked",
   "notes": "Detailed explanation of blocker and what's needed to unblock"
@@ -492,7 +533,6 @@ cat 00-current/item-list.json | grep -B 5 '"status": "in_progress"'
 
 # Document in 00-current/progress.log
 # Select next item that isn't blocked
-select-next-item --skip-blocked ./00-current/item-list.json
 ```
 
 ### Problem: "State files got corrupted or deleted"
@@ -503,19 +543,18 @@ select-next-item --skip-blocked ./00-current/item-list.json
 git checkout -- 00-current/item-list.json 00-current/item-list-archive.json 00-current/progress.log
 
 # If no Git, reconstruct manually:
-# 1. Review session logs in 30-logs/ for history
-# 2. Review recent work (check files modified, git log, etc.)
-# 3. Recreate 00-current/item-list.json as best as possible
-# 4. Document the incident in 00-current/progress.log
-# 5. Mark uncertain items as "pending" to be safe
+# 1. Check 20-working/<ITEM-ID>/log.md files for item history
+# 2. Recreate 00-current/item-list.json as best as possible
+# 3. Document the incident in 00-current/progress.log
+# 4. Mark uncertain items as "pending" to be safe
 ```
 
 ### Problem: "Using legacy flat structure (no 9-zone folders)"
 
 **Solution**: Migrate to the 9-zone structure:
 ```bash
-# 1. Create the folder structure
-mkdir -p 00-current 10-reference 20-working 30-logs 80-issues 90-archive
+# 1. Create the folder structure (no 30-logs/)
+mkdir -p 00-current 05-plans 10-reference 20-working 50-drafts 60-handoffs 80-issues 90-archive
 
 # 2. Move state files to 00-current/
 mv item-list.json 00-current/
@@ -527,10 +566,19 @@ cp {SKILL_ASSETS_PATH}/user-decision.template.md ./00-current/user-decision.md
 # 4. Copy AGENTS.md to project root
 cp {SKILL_ASSETS_PATH}/AGENTS.template.md ./AGENTS.md
 
-# 4b. Do not create a new spec file during migration unless the user requests it
-
 # 5. Document migration in progress.log
 ```
+
+### Problem: "Migrating from v1.2 to v1.3"
+
+**Old-project validation checklist** (run once after upgrade):
+1. `items[]` all have `tasks[]` with ≥1 task — if absent, add a single `TASK-<NNN>-01` derived from the item description.
+2. No `30-logs/` dependency — move any session logs you want to keep into `20-working/<ITEM-ID>/log.md` or `90-archive/`.
+3. Item and task statuses within new enum (`pending | in_progress | completed | blocked | cancelled`). Map old `abandoned` → `cancelled` (add `notes`).
+4. Per-item `20-working/<ITEM-ID>/` folders exist for any currently `in_progress` items.
+5. `item-list.json` uses `terminal_summary` (renamed from `completed_summary`); each entry has `status: completed | cancelled`.
+6. `metadata` has `cancelled` field.
+7. Residual `progress-archive-*.log` files in `30-logs/` may be moved to `90-archive/progress-log/` manually.
 
 ## References
 

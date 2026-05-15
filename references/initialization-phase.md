@@ -16,8 +16,11 @@ PROJECT_DIR="task-relay-project"  # or user-specified name
 mkdir -p "$PROJECT_DIR"
 cd "$PROJECT_DIR"
 
-# Create 9-zone folders
-mkdir -p 00-current 05-plans 10-reference 20-working 30-logs 50-drafts 60-handoffs 80-issues 90-archive
+# Create 9-zone folders (no 30-logs/ — removed in v1.3)
+mkdir -p 00-current 05-plans 10-reference 20-working 50-drafts 60-handoffs 80-issues 90-archive
+
+# Per-item 20-working/<ITEM-ID>/ folders are created LAZILY at execution,
+# not here. Do NOT pre-create them.
 
 # Copy AGENTS.md template to project root
 cp {SKILL_ASSETS_PATH}/AGENTS.template.md ./AGENTS.md
@@ -89,15 +92,16 @@ list. They can populate later by:
 - Promoting an issue from `80-issues/` to an item.
 
 When the user *does* opt in, break the assignment into discrete, testable
-items per the five decomposition rules below.
+items per the decomposition rules below.
 
 **Decomposition Rules** (full reference + examples: `references/decomposition-rules.md`):
 
 1. **One idea per item.** A single feature, refactor, or test category. If you can't summarize the item in one short sentence, split it.
 2. **Functionality and tests are separate items.** Never mix code change and test-writing in the same item.
-3. **Ordering guarantees compilability.** At the end of each item, the project must compile and pass existing tests. Order is a contract, not a hint.
-4. **Every item cites why it comes here.** Populate `rationale_for_order` with a reference to KB entries, source files, or prior items — not hand-waving.
-5. **Every item carries a `complexity` flag.** Either `simple` (handled inline) or `complex` (handed off to `deep-task` via `/task-relay deep`).
+3. **Ordering guarantees compilability.** At the end of each item, the project must compile and pass existing tests.
+4. **Every item cites why it comes here.** Reference KB entries, source files, or prior items in your rationale.
+5. **Every item is session-sized.** An item must be completable in roughly one session. If it would take more, split it into smaller items.
+6. **Every item has ≥1 task.** A trivial item is an item with a single task. Decompose larger items into 2–5 tasks in `tasks[]`.
 
 **Granularity** (advisory):
 | Assignment scope | Typical item count |
@@ -114,18 +118,27 @@ If fewer than 3 items result, you probably don't need task-relay — drive the w
   "id": "ITEM-XXX",
   "category": "setup|implementation|testing|documentation|refactor|bugfix",
   "description": "Action verb + specific outcome",
-  "complexity": "simple | complex",
   "priority": 1,
-  "depends_on": ["ITEM-YYY"],
-  "validation_criteria": ["Objective verification step 1", "Objective verification step 2"],
-  "rationale_for_order": "Why this comes here, citing evidence",
+  "validation_steps": ["Item-level rollup check 1", "Item-level rollup check 2"],
   "status": "pending",
   "completed_at": null,
-  "notes": ""
+  "notes": "",
+  "working_dir": null,
+  "files": [],
+  "tasks": [
+    {
+      "id": "TASK-XXX-01",
+      "description": "First concrete sub-step",
+      "status": "pending",
+      "validation_steps": ["Task-level check"],
+      "completed_at": null,
+      "notes": ""
+    }
+  ]
 }
 ```
 
-> `validation_steps` is accepted as an alias for `validation_criteria` for backwards compatibility. Legacy items default to `complexity: simple`.
+**Note**: Per-item `20-working/<ITEM-ID>/` folders are **NOT created at decomposition time**. They are created lazily when each item first transitions to `in_progress`.
 
 ## Step 3: Create State Files
 
@@ -142,8 +155,8 @@ Fill in `item-list.json`:
 - `assignment.name`
 - `assignment.description`
 - `items` array — **empty `[]` by default**; populate only if Step 2 was opted into.
-- `completed_summary` array (empty at initialization)
-- `metadata` counts — set `total_items`, `pending`, etc. to `0` when items are empty.
+- `terminal_summary` array (empty at initialization)
+- `metadata` counts — set all to `0` (including `cancelled: 0`) when items are empty.
 
 `item-list-archive.json` starts empty.
 
@@ -153,7 +166,7 @@ Fill in `item-list.json`:
 cp {SKILL_ASSETS_PATH}/progress.template.log ./00-current/progress.log
 ```
 
-Add Session 1 entry documenting initialization.
+Add Session 1 entry documenting initialization. Non-item sessions (init, batch ingest, backlog triage, status checks) log to `progress.log` only.
 
 ### 3.3 init.sh or init.md
 
@@ -168,21 +181,11 @@ cp {SKILL_ASSETS_PATH}/init.template.md ./init.md
 
 Customize with project-specific setup steps.
 
-### 3.4 Session Log
-
-```bash
-# Naming: 000_YYYY-MM-DD_<agent>_session-log-initialization.md
-cp {SKILL_ASSETS_PATH}/session-log.template.md \
-  ./30-logs/000_$(date +%Y-%m-%d)_claude_session-log-initialization.md
-```
-
-Fill in session details and YAML frontmatter.
-
 ## Step 4: Verify Baseline
 
 ```bash
-# Verify folder structure exists
-ls -la 00-current/ 10-reference/ 20-working/ 30-logs/ 80-issues/ 90-archive/
+# Verify folder structure exists (no 30-logs/)
+ls -la 00-current/ 10-reference/ 20-working/ 80-issues/ 90-archive/
 
 # Verify state files exist
 ls -la 00-current/item-list.json 00-current/item-list-archive.json \
@@ -201,13 +204,12 @@ validate-state ./00-current/item-list.json
 ## Step 5: Handoff Documentation
 
 1. Update `00-current/progress.log` with Session 1 summary.
-2. Save detailed session log to `30-logs/` with YAML frontmatter.
-3. Recommend the first item to work on (lowest priority number).
-4. Report to user:
+2. Recommend the first item to work on (lowest priority number).
+3. Report to user:
    ```
    ✅ Assignment initialized with 9-zone folder structure
-   📁 Created: 00-current/, 05-plans/, 10-reference/, 20-working/, 30-logs/, 50-drafts/, 60-handoffs/, 80-issues/, 90-archive/
-   📋 item-list.json — empty by default (ask to "decompose" when ready) OR X items created
+   📁 Created: 00-current/, 05-plans/, 10-reference/, 20-working/, 50-drafts/, 60-handoffs/, 80-issues/, 90-archive/
+   📋 item-list.json — empty by default (ask to "decompose" when ready) OR X items created (with tasks[])
    📝 Next session: Start with ITEM-001 - [description]
    📖 Read the last 100 lines of 00-current/progress.log for recent context
    📖 Read AGENTS.md for workflow instructions

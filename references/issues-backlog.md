@@ -111,13 +111,13 @@ EOF
 **Trigger**: user selects an issue during review, or says "promote issue 003 to an item".
 
 1. Read the full issue file.
-2. Create a proper item in `item-list.json` per the v1.1 schema:
-   - Generate next ITEM-XXX ID (check both `items` array and `completed_summary`).
+2. Create a proper item in `item-list.json` per the v1.3 schema:
+   - Generate next ITEM-XXX ID (check both `items` array and `terminal_summary`).
    - Map issue Category → item category.
    - Derive description from issue title/body.
-   - Ask user for `validation_criteria` (or derive from issue content if clear).
-   - Set `complexity` (`simple` or `complex`); set `rationale_for_order`.
-   - Set `status: pending`.
+   - Ask user for `validation_steps` (or derive from issue content if clear).
+   - Add at least one task in `tasks[]` (derive from issue description if clear).
+   - Set `working_dir: null`, `files: []`, `status: pending`.
 3. Update `item-list.json` metadata (`total_items` +1, `pending` +1).
 4. Optionally set `next_override` if the user wants to handle it next session.
 5. Update the issue file frontmatter:

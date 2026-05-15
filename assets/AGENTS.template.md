@@ -12,23 +12,23 @@ This project uses a 9-zone folder system:
 {PROJECT_NAME}/
 ├── AGENTS.md                  # Instructions for the Agent (Read this first!)
 ├── 00-current/               # THE TRUTH (State files)
-│   ├── progress.log          # Progress status
-│   ├── item-list.json        # Active items + compact completed summaries
-│   ├── item-list-archive.json # Full records of completed items (read on demand)
+│   ├── progress.log          # Single global narrative — every session appends here
+│   ├── item-list.json        # Active items (with tasks[]) + compact terminal summaries
+│   ├── item-list-archive.json # Full records of terminal items (read on demand)
 │   ├── memory.md             # Curated insights captured via "remember this" / "don't forget"
 │   └── user-decision.md      # User comments and decisions (DO NOT modify)
 ├── 05-plans/                 # THE BLUEPRINT (Implementation plans, design docs, planning artifacts)
 ├── 10-reference/             # Reference materials (progressive disclosure via MANIFEST.md)
 │   ├── MANIFEST.md           # Auto-generated index of all reference files (always read)
 │   └── 000_YYYY-MM-DD_spec.md # Project spec with paths and URLs (always read)
-├── 20-working/               # THE WORKBENCH (Temporary drafts, experiments, work-in-progress)
-├── 30-logs/                  # THE HISTORY (Session logs + rotated progress.log archives)
-│   ├── PROGRESS-ARCHIVE-MANIFEST.md     # Index of rotated progress.log archives (on-demand)
-│   └── progress-archive-YYYY-MM-DD.log  # Rotated snapshots of progress.log
+├── 20-working/               # PER-ITEM WORKSPACES
+│   └── ITEM-001/             # Created lazily when item first goes in_progress
+│       ├── log.md            # Detailed log for this item (tasks, decisions, blockers)
+│       └── ...               # Other files produced while working this item
 ├── 50-drafts/                # THE LONG-FORM (Drafts being prepared toward a final deliverable)
-├── 60-handoffs/              # THE HANDOFFS (Session-to-session or external handoff packages)
+├── 60-handoffs/              # THE HANDOFFS (External handoff packages)
 ├── 80-issues/                # THE BACKLOG (Ideas, bugs, improvements - on user request only)
-└── 90-archive/               # Obsolete files
+└── 90-archive/               # Obsolete files; 90-archive/progress-log/ for rotated progress logs
 ```
 
 ### Zone Descriptions
@@ -38,10 +38,9 @@ This project uses a 9-zone folder system:
 | `00-current/` | The current truth - state, tasks, decisions | Read for context; Update (except `user-decision.md`) |
 | `05-plans/` | Implementation plans, design docs, planning artifacts | Read/Write |
 | `10-reference/` | Reference documents, specs, external materials. Uses MANIFEST.md for progressive disclosure | Read-only (except MANIFEST.md which agent may regenerate) |
-| `20-working/` | Temporary drafts, experiments, work-in-progress | Read/Write |
-| `30-logs/` | Session logs, conversation history | Write-only (append) |
+| `20-working/<ITEM-ID>/` | Per-item workspace; durable across completion; manual cleanup only | Read/Write |
 | `50-drafts/` | Long-form drafts being prepared toward a final deliverable | Read/Write |
-| `60-handoffs/` | Session-to-session or external handoff packages | Read/Write |
+| `60-handoffs/` | External handoff packages | Read/Write |
 | `80-issues/` | Backlog of ideas, bugs, improvements | Read/Write (on user request only) |
 | `90-archive/` | Obsolete/superseded files | Move files here when obsolete |
 
@@ -52,9 +51,11 @@ This project uses a 9-zone folder system:
    - If it is missing in an existing project, ask the user and do not create it outside initialization.
 3. **ALWAYS read `10-reference/MANIFEST.md`** during State Recovery. Use it to discover available reference files. Only open files relevant to the current item. Check staleness by comparing `ls 10-reference/` against entries; update MANIFEST if files were added or removed.
 4. **NEVER work on multiple items per session** - ONE item per session, no exceptions.
-5. **NEVER mark completed without validation** - ALL validation_steps must pass.
-6. **NEVER skip state updates** - Update `item-list.json`, `item-list-archive.json` (when completing items), and `progress.log` before ending session.
-7. **Rotate `progress.log` when it gets large.** Before ending the session, if `wc -l 00-current/progress.log` exceeds ~1000 lines (or the file exceeds ~200 KB), run `bash {SKILL_SCRIPTS_PATH}/rotate-progress-log.sh`. This archives the current log to `30-logs/progress-archive-YYYY-MM-DD.log`, starts a fresh `progress.log` with a continuity header, and regenerates `30-logs/PROGRESS-ARCHIVE-MANIFEST.md`. Never truncate `progress.log` by hand — always rotate.
+5. **NEVER mark completed without validation** - ALL item-level `validation_steps` must pass AND every task must be `completed` or `cancelled`.
+6. **NEVER skip state updates** - Flush `item-list.json` after every task status change; always update `item-list-archive.json` when an item becomes terminal; always append to `progress.log`.
+7. **NEVER auto-advance to the next task** - After each task completes (or is cancelled/blocked), STOP and ask the user which task to run next. Task order is user-chosen.
+8. **NEVER execute without confirming item selection** - Present the candidate item and wait for user confirmation before marking it `in_progress`. A status check is read-only.
+9. **Rotate `progress.log` when it gets large.** Before ending the session, if `wc -l 00-current/progress.log` exceeds ~1000 lines (or ~200 KB), run `bash {SKILL_SCRIPTS_PATH}/rotate-progress-log.sh`. This archives to `90-archive/progress-log/progress-archive-YYYY-MM-DD.log` and regenerates `90-archive/progress-log/PROGRESS-ARCHIVE-MANIFEST.md`. NEVER truncate `progress.log` by hand. NEVER auto-read `90-archive/` during state recovery.
 
 ---
 
@@ -72,12 +73,7 @@ Where:
 - `<author>` is the creator (claude, cursor, gemini, user, etc.)
 - `<description>` is a hyphenated description of the content
 
-**Examples:**
-- `000_2025-12-17_claude_session-log-initialization.md`
-- `001_2025-12-18_cursor_api-authentication-notes.md`
-- `002_2025-12-18_claude_session-log-item-003.md`
-
-**Note**: State files (`item-list.json`, `item-list-archive.json`, `progress.log`, `user-decision.md`) keep their standard names.
+**Note**: State files keep their standard names.
 
 **Exception**: `10-reference/000_YYYY-MM-DD_spec.md` is required and does not include an author segment.
 
@@ -85,7 +81,7 @@ Where:
 
 ## YAML Frontmatter
 
-All AI-generated markdown documents must include YAML frontmatter at the beginning:
+All AI-generated markdown documents must include YAML frontmatter:
 
 ```yaml
 ---
@@ -97,32 +93,15 @@ Superseded_by: (optional path to replacement document)
 ---
 ```
 
-**Field Descriptions:**
-- **Type**: Document category
-  - `working` - Work in progress, drafts
-  - `spec` - Specifications, requirements
-  - `decision` - Decision records
-  - `note` - General notes, observations
-  - `session-log` - Session transcript or summary
-- **Status**: Current state of the document
-  - `Active` - Currently valid and in use
-  - `Superseded` - Replaced by a newer version (link in `Superseded_by`)
-  - `Obsolete` - No longer relevant
-- **Author**: Who created the document
-- **Created**: Date of creation in YYYY-MM-DD format
-- **Superseded_by**: Path to the document that replaces this one (only if Status is Superseded)
-
 ---
 
 ## Housekeeping Rules
-
-The AI agent should actively maintain project organization based on document status:
 
 | Status | Action |
 |--------|--------|
 | `Obsolete` | Move file to `90-archive/` |
 | `Superseded` | Keep in place, but ensure `Superseded_by` links to replacement |
-| `Active` | Keep in `20-working/` or promote to `00-current/` if finalized |
+| `Active` | Keep in `20-working/<ITEM-ID>/` or promote to `00-current/` if finalized |
 
 When creating new documents that replace existing ones:
 1. Update the old document's frontmatter: set `Status: Superseded` and add `Superseded_by` path
@@ -133,66 +112,70 @@ When creating new documents that replace existing ones:
 
 ## Session-End Protocol
 
-At the end of every session, produce two outputs:
+At the end of every execution session, produce two outputs:
 
-### 1. Session Log (goes to `30-logs/`)
+### 1. Item Log Update (goes to `20-working/<ITEM-ID>/log.md`)
 
-Save a session log using the standard naming convention:
-- Use format: `XXX_YYYY-MM-DD_<author>_session-log-<item-or-description>.md`
-- Include:
-  - Item ID and description worked on
-  - Work performed summary
-  - Validation results (ALL steps documented)
-  - Blockers encountered
-  - Key decisions made
-- Example: `002_2025-12-18_claude_session-log-item-003-login-page.md`
+Update the item's log with:
+- Tasks worked this session and their outcomes
+- Validation results (ALL steps documented)
+- Blockers encountered
+- Key decisions made
+- Files created or modified
 
 ### 2. Update Pack (updates `00-current/`)
 
 Update the following files in `00-current/` to reflect the session outcomes:
-- `progress.log` - Append session summary
-- `item-list.json` - Update item status, notes, and metadata; on completion, move full record to archive and add compact entry to `completed_summary`
-- `item-list-archive.json` - Append full record of completed items
+- `progress.log` - Append session summary (with handoff note if mid-item overflow)
+- `item-list.json` - Flush task/item status changes and metadata; on terminal status, move full record to archive and add compact entry to `terminal_summary`
+- `item-list-archive.json` - Append full record of terminal items
 
 **Remember:** Never modify `user-decision.md` - this is user-maintained only.
 
----
-
-## Document Relationships and Wiki Linking
-
-### Establishing Connections
-
-When creating documents, identify relationships with existing documents and create wiki-style links using the `[[document-name]]` syntax.
-
-### Inline Linking
-
-Place wiki links inline within the natural flow of text where the reference is most relevant.
-
-**Example:**
-> "This implementation follows the approach documented in [[001_2025-12-16_cursor_architecture-overview]] and addresses the issues raised in [[user-decision]]."
-
-The goal is to create a web of interconnected knowledge where readers can navigate naturally between related topics.
+Non-item sessions (init, batch ingest, status checks) update `progress.log` only — no item log needed.
 
 ---
 
-## Item Workflow (Task Relay Core)
+## Item/Task Model
 
-### Execution Workflow
+### Model summary
 
-1. **State Recovery**: Read the last 100 lines of `00-current/progress.log`, `00-current/item-list.json` (active items + completed summaries), `00-current/user-decision.md` (read-only), `00-current/memory.md` (curated insights from prior sessions, if it exists), `10-reference/000_YYYY-MM-DD_spec.md`, and `10-reference/MANIFEST.md`. Check MANIFEST staleness via `ls 10-reference/`. Load only reference files relevant to the current item. Do NOT read `item-list-archive.json` unless you need detailed history of a completed item. **Progress-log archives**: if `30-logs/PROGRESS-ARCHIVE-MANIFEST.md` exists, read it (cheap, one table). Pull a specific `30-logs/progress-archive-*.log` ONLY when the current item references context (decisions, blockers, narrative) outside the fresh progress.log AND the JSON state files don't have it. Match by date / item ID / milestone keyword from the manifest table; do not load archives speculatively.
-2. **Item Selection**: Check `next_override` first; if set, select that item and clear the override. Otherwise pick ONE pending item (lowest priority number)
-3. **Execution**: Do the work, stay scoped to this item only
-4. **Validation**: Run ALL validation steps (CRITICAL - all must pass)
-5. **State Update**: Update `item-list.json` and append to `progress.log`
-6. **Session Log**: Save detailed log to `30-logs/`
-7. **Session Summary**: Report completion and recommend next item
+- **Project** = many items. **Item** = one session's work. **Tasks** = checkpoints within an item.
+- Every item has `tasks[]` (≥1). A trivial item has a single task.
+- Task IDs: `TASK-<item-number>-<task-number>` (e.g. `TASK-001-01`). Numbering is identity, not mandated run order.
+- Status enum (items and tasks): `pending | in_progress | completed | blocked | cancelled`.
+  - `blocked` — not terminal; user can pick another task.
+  - `cancelled` — terminal; `notes` REQUIRED explaining why.
 
-### Item Status Values
+### Selection gate (confirm before execute)
 
-- `pending` - Not yet started
-- `in_progress` - Currently being worked on (max 1 at a time)
-- `completed` - All validation steps passed
-- `blocked` - Cannot proceed, documented reason in notes
+1. Identify the candidate item (resume `in_progress` item, else `next_override`, else lowest-priority pending). If all pending are blocked → "nothing actionable".
+2. **STOP. Present candidate to user. Wait for confirmation.**
+3. On confirm: mark item `in_progress`; create `20-working/<ITEM-ID>/` lazily; clear `next_override`.
+4. On reject: leave state unchanged; `next_override` stays.
+5. **Status check is strictly read-only** — report state + suggested next; never mark anything `in_progress`.
+
+### Task loop (user-driven)
+
+After item is confirmed `in_progress`:
+1. List remaining `pending` tasks.
+2. Ask user which task to work on next. **Wait for selection.**
+3. Mark task `in_progress`; flush `item-list.json`.
+4. Do the work; validate; mark `completed` / `blocked` / `cancelled`; flush `item-list.json`.
+5. **STOP. Go back to step 1.** Never auto-advance.
+
+### Item completion rollup
+
+- Every task must be `completed` or `cancelled`.
+- Every `cancelled` task must have non-empty `notes`.
+- All item-level `validation_steps` must pass.
+- Then mark item terminal and archive.
+
+### Overflow (context fills mid-item)
+
+- Leave item and current task `in_progress`.
+- Write handoff note to `progress.log` specifying which task to resume.
+- Next session picks up the `in_progress` task or user picks next pending task.
 
 ---
 
@@ -203,8 +186,8 @@ When the user says "remember this", "remember that", "don't forget", "note for l
 1. Extract the candidate insight from surrounding conversation.
 2. Propose a section (`Gotchas` / `Decisions` / `Preferences` / `Facts`) and a one-line phrasing.
 3. Wait for user approval / edits.
-4. On approval, append a bullet under the chosen `##` heading in `00-current/memory.md`:
-   `- [YYYY-MM-DD] <phrasing>`
+4. On approval, check for similar entries; increment `[N=k]` if found, else append new bullet:
+   `- [N=1] [YYYY-MM-DD] <phrasing>`
 5. Echo the entry written. No `progress.log` update needed.
 
 `memory.md` is auto-loaded during State Recovery so insights persist across sessions.
@@ -216,10 +199,11 @@ When the user says "remember this", "remember that", "don't forget", "note for l
 1. **Read First**: Always read `AGENTS.md`, the current state files (`item-list.json`, `user-decision.md`, `memory.md` if present, and only the last 100 lines of `progress.log`), `10-reference/000_YYYY-MM-DD_spec.md`, and `10-reference/MANIFEST.md` before starting work
 2. **Maintain Structure**: Follow the folder structure and naming conventions strictly
 3. **Track Status**: Keep frontmatter status updated as documents evolve
-4. **Link Knowledge**: Create meaningful connections between related documents
+4. **Link Knowledge**: Create meaningful connections between related documents using `[[document-name]]` syntax
 5. **Clean Up**: Actively archive obsolete files and maintain organization
 6. **Respect Boundaries**: Never modify user-maintained files (`user-decision.md`)
 7. **One Item Per Session**: Focus on a single item to ensure quality
-8. **Progressive Reference Disclosure**: Read MANIFEST.md to discover references. Match file descriptions/tags against the current item's category and description. Only load files that are clearly relevant. When in doubt, skip — you can always load a file later during execution
+8. **User-Driven Tasks**: Never auto-pick or auto-advance tasks; always ask the user
+9. **Progressive Reference Disclosure**: Read MANIFEST.md to discover references. Match file descriptions/tags against the current item's category and description. Only load files that are clearly relevant.
 
 Your goal is not just to complete tasks, but to build an interconnected, well-organized knowledge base that grows more valuable over time.

@@ -7,42 +7,39 @@ Full procedure for the post-task retrospective. Routed from `SKILL.md`
 
 - User invokes `/task-relay learn` (or `/task-relay learn ITEM-XXX`) after
   an item is marked `completed`.
-- Optionally auto-suggested by the `/task-relay deep ITEM-XXX` adapter
-  after a successful deep-task run.
 
-**Do NOT run** when the task ended `blocked` or `cancelled`. Those need
+**Do NOT run** when the item ended `blocked` or `cancelled`. Those need
 separate user attention, not a retrospective.
 
 ## Inputs
 
 - The most-recently-completed item from `00-current/item-list.json` (or
   the one named in the command).
-- Its phase artifacts: `02_execution.md` and `task-result.yaml` from
-  `<workdir>/` (typically `20-working/ITEM-XXX/`, or the archived copy in
-  `90-archive/`).
+- Its item log: `20-working/<ITEM-XXX>/log.md` (what was planned and how
+  each task was executed).
 - The current source-code state of the files the executor touched.
 
-## Step 1 — Identify the last completed task
+## Step 1 — Identify the last completed item
 
 Find the most recent item where status flipped to `completed` (check
-`progress.log`). If the user passed an explicit ITEM-XXX, use that.
+`progress.log` or the `terminal_summary` in `item-list.json`). If the user
+passed an explicit ITEM-XXX, use that.
 
 ## Step 2 — Identify user hand-edits
 
-Compare `02_execution.md`'s `## Steps` (what the executor applied) against
-the current source code:
+Read `20-working/<ITEM-XXX>/log.md` to understand what the agent planned to
+do vs. what actually happened. Then compare logged work against the current
+source code:
 
-1. For each file referenced in the execution steps, read current contents.
-2. Compute the diff between *plan-said-to-write* and *file-currently-says*.
+1. For each file referenced in the item log's task entries, read current contents.
+2. Compute the diff between *log-said-to-write* and *file-currently-says*.
 3. Filter the diff:
-   - **Ignore** changes attributable to `## Fixing attempt No.<N>` sections
-     (executor self-corrections).
-   - **Ignore** changes attributable to `## UPDATE` amendments.
-   - **Ignore** changes already documented under `## User Update Spotted`.
+   - **Ignore** changes documented under task validation results (executor self-corrections).
+   - **Ignore** changes already captured in the log's "Work performed" sections.
    - **Anything else** is a user hand-edit — the signal we care about.
 
 > **Why not `git diff`?** Because the user often commits intermediate
-> states. The trustworthy comparison is *plan vs. current state*, not
+> states. The trustworthy comparison is *log vs. current state*, not
 > *initial vs. current state*.
 
 ## Step 3 — Categorize the hand-edits
@@ -100,7 +97,7 @@ For each confirmed lesson:
 
 3. **Log to `progress.log`:**
    ```markdown
-   ## Session N - YYYY-MM-DD
+   ### Session N - YYYY-MM-DD
    **Phase**: Learn Retrospective
    **From**: ITEM-007
    **Lessons applied**:
@@ -110,18 +107,6 @@ For each confirmed lesson:
      - Gotchas: "JsonWriter::writer is private..."
        → memory.md (new)
    ```
-
-## Step 6 — Optional: Capture skill invocations
-
-If `task-result.yaml.skills_invoked[]` exists (Interface 5):
-
-- Record which cognition skill was invoked, in which phase, for what reason.
-- Aggregate over the project to spot patterns (e.g. "`systematic-debugging`
-  invoked 4 times in `02_execution.md` for parser items — design for that
-  earlier").
-- Append to `30-logs/skill-invocation-summary.md` (cumulative).
-
-Optional, but useful for compound-engineering-style learning.
 
 ## Anti-patterns
 
@@ -139,6 +124,6 @@ Optional, but useful for compound-engineering-style learning.
 - User confirms per-lesson; only confirmed ones land in `memory.md` and
   `item-list.json`.
 - `progress.log` records the retrospective transparently.
-- Blocked or cancelled tasks are skipped, not retrospected.
+- Items that ended `blocked` or `cancelled` are skipped, not retrospected.
 - Falsely-attributed hand-edits (caused by fixing attempts) are filtered
   out.

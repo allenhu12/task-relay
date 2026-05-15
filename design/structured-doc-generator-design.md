@@ -4,6 +4,12 @@
 **Date:** 2025-12-25
 **Status:** Design Phase
 
+> **v1.3 note:** This design predates task-relay v1.3. References to `30-logs/`
+> session logs are superseded — detailed item logs now live in
+> `20-working/<ITEM-ID>/log.md`. References to `/task-relay deep` or
+> `task-result.yaml` are superseded — the deep adapter was removed in v1.3.
+> The core structured-doc-generator design remains valid for future implementation.
+
 ---
 
 ## Executive Summary

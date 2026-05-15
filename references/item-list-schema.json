@@ -1,9 +1,9 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Task Relay Item List Schema",
+  "title": "Task Relay Item List Schema v1.3",
   "description": "JSON schema for task-relay item-list.json file",
   "type": "object",
-  "required": ["assignment", "items", "completed_summary", "metadata"],
+  "required": ["assignment", "items", "terminal_summary", "metadata"],
   "properties": {
     "assignment": {
       "type": "object",
@@ -34,14 +34,14 @@
     "next_override": {
       "type": ["string", "null"],
       "pattern": "^ITEM-[0-9]{3,}$",
-      "description": "Set to an item ID to override the selection algorithm and work on this item next. Cleared (set to null) after the item is selected. Can be set by user or agent when inserting urgent items."
+      "description": "Set to an item ID to override the selection algorithm. Cleared (set to null) only when the user confirms and the item is marked in_progress."
     },
     "items": {
       "type": "array",
       "minItems": 0,
       "items": {
         "type": "object",
-        "required": ["id", "category", "description", "priority", "validation_steps", "status"],
+        "required": ["id", "category", "description", "priority", "validation_steps", "status", "tasks"],
         "properties": {
           "id": {
             "type": "string",
@@ -70,31 +70,84 @@
               "type": "string",
               "minLength": 5
             },
-            "description": "List of objective verification steps"
+            "description": "Item-level rollup validation steps (all tasks completed + end-to-end checks)"
           },
           "status": {
             "type": "string",
-            "enum": ["pending", "in_progress", "completed", "blocked"],
-            "description": "Current status of the item"
+            "enum": ["pending", "in_progress", "completed", "blocked", "cancelled"],
+            "description": "Current status of the item. blocked = not terminal; cancelled = terminal (notes required)"
           },
           "completed_at": {
             "type": ["string", "null"],
             "format": "date-time",
-            "description": "ISO-8601 timestamp when item was completed (null if not completed)"
+            "description": "ISO-8601 timestamp when item reached terminal status (null if not terminal)"
           },
           "notes": {
             "type": "string",
-            "description": "Additional context or blocker information"
+            "description": "Additional context or blocker info. REQUIRED when status == cancelled."
+          },
+          "working_dir": {
+            "type": ["string", "null"],
+            "description": "Path to per-item working folder (e.g. 20-working/ITEM-001). Null/absent until item first transitions to in_progress."
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Files inside working_dir, agent-maintained."
+          },
+          "tasks": {
+            "type": "array",
+            "minItems": 1,
+            "description": "Ordered list of tasks for this item. Every item has at least one task.",
+            "items": {
+              "type": "object",
+              "required": ["id", "description", "status", "validation_steps", "completed_at", "notes"],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^TASK-[0-9]{3,}-[0-9]{2,}$",
+                  "description": "Task identifier e.g. TASK-001-01. Embeds item number for machine-obvious linkage."
+                },
+                "description": {
+                  "type": "string",
+                  "minLength": 5,
+                  "description": "Concrete sub-step description"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": ["pending", "in_progress", "completed", "blocked", "cancelled"],
+                  "description": "Task status. blocked = not terminal; cancelled = terminal (notes required)"
+                },
+                "validation_steps": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Task-level verification steps"
+                },
+                "completed_at": {
+                  "type": ["string", "null"],
+                  "format": "date-time",
+                  "description": "ISO-8601 timestamp when task reached terminal status"
+                },
+                "notes": {
+                  "type": "string",
+                  "description": "Additional context. REQUIRED when status == cancelled."
+                }
+              }
+            }
           }
         }
       }
     },
-    "completed_summary": {
+    "terminal_summary": {
       "type": "array",
-      "description": "Compact summaries of completed items (full records archived in item-list-archive.json)",
+      "description": "Compact summaries of terminal items (completed or cancelled). Full records in item-list-archive.json.",
       "items": {
         "type": "object",
-        "required": ["id", "description", "completed_at"],
+        "required": ["id", "description", "status", "completed_at"],
         "properties": {
           "id": {
             "type": "string",
@@ -105,22 +158,27 @@
             "type": "string",
             "description": "Original item description for reference"
           },
+          "status": {
+            "type": "string",
+            "enum": ["completed", "cancelled"],
+            "description": "Terminal status of the item"
+          },
           "completed_at": {
             "type": "string",
             "format": "date-time",
-            "description": "ISO-8601 timestamp when item was completed"
+            "description": "ISO-8601 timestamp when item became terminal"
           }
         }
       }
     },
     "metadata": {
       "type": "object",
-      "required": ["total_items", "completed", "in_progress", "blocked", "pending"],
+      "required": ["total_items", "completed", "in_progress", "blocked", "pending", "cancelled"],
       "properties": {
         "total_items": {
           "type": "integer",
           "minimum": 0,
-          "description": "Total number of items"
+          "description": "Total number of items. Must equal sum of all status counts."
         },
         "completed": {
           "type": "integer",
@@ -131,7 +189,7 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 1,
-          "description": "Number of items in progress (should be 0 or 1)"
+          "description": "Number of items in progress (0 or 1)"
         },
         "blocked": {
           "type": "integer",
@@ -142,6 +200,11 @@
           "type": "integer",
           "minimum": 0,
           "description": "Number of pending items"
+        },
+        "cancelled": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of cancelled items"
         }
       }
     }
