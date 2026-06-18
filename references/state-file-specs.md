@@ -117,6 +117,9 @@ Template: `assets/spec.template.md`.
 **Key rules**:
 - Read at the start of every session.
 - Treat all paths as project-specific placeholders to update during initialization.
+- For code projects, initialization must resolve `PROJECT_ROOT`; source edits, git commands, and rsync commands must not use unresolved placeholders.
+- For remote compile/sync workflows, resolve `TARGET_ROOT` before generating rsync commands.
+- For multi-repo checkouts, record `REPO_PROFILE_ROOT` only after explicit user confirmation during first initialization. Keep repo local paths portable as `{PROJECT_ROOT}/<checkout_path>`.
 - Use for progressive disclosure — only open related documents when needed.
 
 ## 20-working/<ITEM-ID>/ — Per-item workspace

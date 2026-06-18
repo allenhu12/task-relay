@@ -25,6 +25,11 @@ This document provides detailed checklists for both initialization and execution
   - [ ] What is the final deliverable?
   - [ ] Are there specific requirements or constraints?
   - [ ] What does "done" look like?
+- [ ] For code projects, resolve `PROJECT_ROOT` before finalizing `10-reference/000_YYYY-MM-DD_spec.md`
+- [ ] If source sync/remote compile is needed, resolve `TARGET_ROOT`
+- [ ] If using a multi-repo checkout, resolve `REPO_PROFILE_ROOT`, verify it contains `manifest.xml`, and get explicit user confirmation before writing it into the live spec
+- [ ] Replace `{PROJECT_ROOT}`, `{TARGET_ROOT}`, and `{REPO_PROFILE_ROOT}` placeholders in the live spec, or ask the user if they cannot be inferred safely
+- [ ] For manifest-based projects, verify the repo table matches the manifest project list and keeps local paths portable under `{PROJECT_ROOT}`
 - [ ] Understand the domain (code/research/writing/data/etc.)
 - [ ] Identify any dependencies or prerequisites
 

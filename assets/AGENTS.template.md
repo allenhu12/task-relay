@@ -49,6 +49,7 @@ This project uses a 9-zone folder system:
 1. **NEVER modify `00-current/user-decision.md`** - This file contains user comments and decisions and is maintained exclusively by the user.
 2. **ALWAYS read `10-reference/000_YYYY-MM-DD_spec.md`** - Use it to find reference paths and URLs.
    - If it is missing in an existing project, ask the user and do not create it outside initialization.
+   - If source path placeholders such as `{PROJECT_ROOT}`, `{TARGET_ROOT}`, or `{REPO_PROFILE_ROOT}` are still unresolved, ask the user or infer only when the value is obvious. Do not run source edits, git commands, or rsync commands with unresolved placeholders.
 3. **ALWAYS read `10-reference/MANIFEST.md`** during State Recovery. Use it to discover available reference files. Only open files relevant to the current item. Check staleness by comparing `ls 10-reference/` against entries; update MANIFEST if files were added or removed.
 4. **NEVER work on multiple items per session** - ONE item per session, no exceptions.
 5. **NEVER mark completed without validation** - ALL item-level `validation_steps` must pass AND every task must be `completed` or `cancelled`.

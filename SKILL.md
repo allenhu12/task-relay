@@ -184,7 +184,7 @@ Run this workflow when starting a NEW assignment (no state files exist).
 
 **Steps (summary).**
 - **Step 0** — Create the 9-zone folder structure (`00-current/`, `05-plans/`, `10-reference/`, `20-working/`, `50-drafts/`, `60-handoffs/`, `80-issues/`, `90-archive/`); copy `AGENTS.md`, `user-decision.md`, `memory.md`, spec template; run `scripts/generate-manifest.sh ./10-reference`. Per-item `20-working/<ITEM-ID>/` folders are created **lazily** at execution, not here.
-- **Step 1** — Analyze the user's requirements; clarify scope; record reference paths in `10-reference/000_*_spec.md`.
+- **Step 1** — Analyze the user's requirements; clarify scope; for code projects resolve `PROJECT_ROOT`/`TARGET_ROOT`/`REPO_PROFILE_ROOT`; record reference paths in `10-reference/000_*_spec.md`.
 - **Step 1.5** — *Knowledge Front-Loading* (highly recommended): structured Q&A, one question at a time, update reference docs after each answer. Highest-ROI activity at project start.
 - **Step 2** — Decompose into items **only if the user explicitly asks** ("generate items", "decompose the project", "fill in the item list"). When you do decompose, apply the decomposition rules (see `references/decomposition-rules.md`). Each item must have ≥1 task in `tasks[]`; a trivial item gets one task mirroring its description.
 - **Step 3** — Create state files from `assets/` templates: `item-list.json` (starts empty unless Step 2 produced items), `item-list-archive.json`, `progress.log`, `init.sh`/`init.md`, initialization entry in `progress.log`.

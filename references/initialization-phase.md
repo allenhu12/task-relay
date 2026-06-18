@@ -51,8 +51,31 @@ ls -la 10-reference/
    - What is the final deliverable?
    - Are there specific requirements or constraints?
    - What does "done" look like?
-3. Update `10-reference/000_YYYY-MM-DD_spec.md` with project-specific reference paths
-4. Understand the domain (code project, research, writing, data analysis, etc.)
+3. For code projects, resolve source roots before finalizing the spec:
+   - `PROJECT_ROOT`: active local checkout root on the local workstation.
+   - `TARGET_ROOT`: matching remote compile-server checkout root, if source sync/compile is needed.
+   - `REPO_PROFILE_ROOT`: profile folder containing `manifest.xml`, `metadata.json`, `repo_map.txt`, and `repo_map_upstream.txt`, if this is a multi-repo checkout.
+   - `REPO_PROFILE_ROOT` must be confirmed by the user the first time the skill initializes a project. The agent may propose an inferred value, but must not write it to the spec until the user confirms it.
+   - For `PROJECT_ROOT` and `TARGET_ROOT`, use user-provided values when available. If absent, infer only when obvious from the current working directory or repo metadata. If inference is uncertain, ask the user.
+   - Replace `{PROJECT_ROOT}`, `{TARGET_ROOT}`, and `{REPO_PROFILE_ROOT}` in `10-reference/000_YYYY-MM-DD_spec.md`. Do not leave `{PROJECT_ROOT}` unresolved in a live project spec.
+4. Update `10-reference/000_YYYY-MM-DD_spec.md` with project-specific reference paths
+5. Understand the domain (code project, research, writing, data analysis, etc.)
+
+### Multi-Repo Source Map Handling
+
+When `REPO_PROFILE_ROOT` contains a manifest:
+
+1. Read `metadata.json` and `manifest.xml`.
+2. Replace the placeholder repo table in the spec with rows generated from the manifest.
+3. Generate each row from manifest fields:
+   - repo name = `project/@name`
+   - checkout path = `project/@path`, or `project/@name` when `path` is absent
+   - local path = `{PROJECT_ROOT}/<checkout_path>`
+   - upstream branch = `project/@upstream`
+   - pinned revision = `project/@revision`
+4. Set remote fields from the manifest `remote` element (`name`, `fetch`, `review`) when present.
+5. Keep paths portable. Do not replace repo table paths with one hardcoded checkout path; only set `PROJECT_ROOT` once.
+6. For future source edits, use the table to identify the owning repo before running git commands or preparing rsync commands.
 
 ## Step 1.5: Knowledge Front-Loading (Recommended)
 
