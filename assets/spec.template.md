@@ -73,4 +73,12 @@ rsync -az --partial --info=progress2 \
 - `~/Document/Protocol.pdf`
 
 # web document reference
-- url
+### Example Controller, Example Product, and Companion Product MR branches and release info
+<INTERNAL_DOCUMENTATION_URL>
+
+Summary: This Confluence page is the overall release matrix for Example Controller, Example Product, and Blue releases, mapping each version to its controller branch, AP branch, compatible release, supported AP models, and release notes. For LLM agents, use it to identify the correct branch and AP-family context before interpreting build, firmware, or test-environment details.
+
+### Example Product and Example Controller MR branches and release info
+<INTERNAL_DOCUMENTATION_URL>
+
+Summary: This is the same Confluence page ID as the overall release-info page, with detailed Example Controller and Example Product release histories including GA, MR, refresh, patch, build number, and image/symbol references. For this project, the key current context is the Example Product 200.19 line, including 200.19.7.11 and 200.19.7.112 branch alignment.
