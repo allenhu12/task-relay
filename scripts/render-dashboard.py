@@ -24,7 +24,11 @@ import os
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any, Optional, Sequence
+from typing import Any, Callable, Optional, Sequence
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import dashboard_strings as ds  # noqa: E402  (path set up above)
 
 # --------------------------------------------------------------------------
 # UI labels (D5/D9). Chinese, matching layout A of the approved mockup.
@@ -35,14 +39,14 @@ LABELS = {
     "updated": "更新于",
     "kpi_needs_you": "等你处理",
     "kpi_external": "等外部",
-    "kpi_in_progress_items": "进行中 item",
-    "kpi_completed_items": "已完成 item",
+    "kpi_in_progress_items": "进行中事项",
+    "kpi_completed_items": "已完成事项",
     "section_needs_you": "需要你处理",
     "section_external": "等外部",
-    "section_active": "进行中和待办的 Items",
+    "section_active": "进行中和待办的事项",
     "section_activity": "最近动态",
     "section_deliverables": "最新交付物",
-    "section_finished": "已结束的 Items",
+    "section_finished": "已结束的事项",
     "who_needs_you": "需要你",
     "who_external": "等外部",
     "unclassified": "未分类",
@@ -61,7 +65,7 @@ LABELS = {
     "summary_only": "只有一行摘要（archive 里没有完整记录）",
     "activity_cap": "只显示最近 5 条",
     "deliverables_cap": "只显示最近 5 个文件",
-    "finished_cap": "默认折叠，点开看 task。所有已结束 item 都保留 task 明细。",
+    "finished_cap": "默认折叠，点开看 task。所有已结束事项都保留 task 明细。",
     "status": {
         "pending": "待办",
         "in_progress": "进行中",
@@ -138,11 +142,33 @@ def clip(text: Any) -> tuple[str, Optional[str]]:
     return value[:TRUNCATE_LIMIT] + TRUNCATION_SUFFIX, value
 
 
-def clipped_span(text: Any, css_class: str = "") -> str:
-    visible, full = clip(text)
-    title = f' title="{esc(full)}"' if full is not None else ""
+def translated(value: Any, translations: Optional[dict]) -> str:
+    """Return the cached translation of a data string, else the original."""
+    original = as_text(value)
+    if not original or not translations:
+        return original
+    return translations.get(ds.translation_key(original), original)
+
+
+def value_span(original: Any, shown: Any, css_class: str = "") -> str:
+    """Render ``shown``, clipped, with the ORIGINAL full text in ``title`` (D16).
+
+    The title is emitted whenever the shown text was clipped or translated, so
+    hovering always reveals the stored original.
+    """
+    original_text = as_text(original)
+    shown_text = as_text(shown)
+    visible, _clipped = clip(shown_text)
+    truncated = len(shown_text) > TRUNCATE_LIMIT or len(original_text) > TRUNCATE_LIMIT
+    needs_title = bool(original_text) and (shown_text != original_text or truncated)
+    title = f' title="{esc(original_text)}"' if needs_title else ""
     attribute = f' class="{css_class}"' if css_class else ""
     return f"<span{attribute}{title}>{esc(visible)}</span>"
+
+
+def data_span(value: Any, translations: Optional[dict], css_class: str = "") -> str:
+    """Clip the display text of a data string; keep the original for hover."""
+    return value_span(as_text(value), translated(value, translations), css_class)
 
 
 def timestamp_key(value: Any) -> str:
@@ -198,24 +224,34 @@ def blocker_kind(task: dict) -> str:
     return "unclassified"
 
 
-def task_note(task: dict) -> str:
-    """One-line note for a task: blocker question / waiting_on, else notes."""
+def note_from(task: dict, render: Callable[[Any], str]) -> str:
+    """Compose the one-line note, translating each field through ``render``."""
     blocker = blocker_of(task)
     if blocker is not None:
         kind = blocker_kind(task)
         if kind == "needs_user":
             detail = as_text(blocker.get("question")) or as_text(blocker.get("summary"))
             if detail:
-                return f"{LABELS['note_needs_you']}：{detail}"
+                return f"{LABELS['note_needs_you']}：{render(detail)}"
         elif kind == "external":
             detail = as_text(blocker.get("waiting_on")) or as_text(blocker.get("summary"))
             if detail:
-                return f"{LABELS['note_external']}：{detail}"
+                return f"{LABELS['note_external']}：{render(detail)}"
         else:
             detail = as_text(blocker.get("summary"))
             if detail:
-                return f"{LABELS['unclassified']}：{detail}"
-    return as_text(task.get("notes"))
+                return f"{LABELS['unclassified']}：{render(detail)}"
+    return render(task.get("notes"))
+
+
+def task_note(task: dict) -> str:
+    """Original one-line note for a task: blocker question / waiting_on, else notes."""
+    return note_from(task, as_text)
+
+
+def shown_note(task: dict, translations: Optional[dict]) -> str:
+    """Same note with each translatable field passed through the cache."""
+    return note_from(task, lambda value: translated(value, translations))
 
 
 def progress_bar(tasks: Sequence[dict]) -> str:
@@ -247,7 +283,7 @@ def progress_bar(tasks: Sequence[dict]) -> str:
     )
 
 
-def task_line(task: dict) -> str:
+def task_line(task: dict, translations: Optional[dict] = None) -> str:
     kind = blocker_kind(task)
     status = as_text(task.get("status"))
     marker = f"i-{status}" if status in LABELS["status"] else "i-pending"
@@ -259,44 +295,52 @@ def task_line(task: dict) -> str:
         f'<span class="ic {marker}"></span>',
         "<span>",
         f'<span class="mono">{esc(task.get("id"))}</span> ',
-        clipped_span(task.get("description")),
+        data_span(task.get("description"), translations),
     ]
-    note = task_note(task)
-    if note:
-        visible, full = clip(note)
-        title = f' title="{esc(full)}"' if full is not None else ""
+    original_note = task_note(task)
+    if original_note:
+        shown = shown_note(task, translations)
+        visible, _clipped = clip(shown)
+        needs_title = shown != original_note or len(original_note) > TRUNCATE_LIMIT or len(shown) > TRUNCATE_LIMIT
+        title = f' title="{esc(original_note)}"' if needs_title else ""
         parts.append(f'<span class="tnote"{title}>{esc(visible)}</span>')
     parts.append("</span>")
     parts.append(chip(status))
     return "<li>" + "".join(parts) + "</li>"
 
 
-def task_lines(item: dict) -> str:
-    lines = "".join(task_line(task) for task in task_items(item))
+def task_lines(item: dict, translations: Optional[dict] = None) -> str:
+    lines = "".join(task_line(task, translations) for task in task_items(item))
     return f'<ul class="tasks">{lines}</ul>' if lines else ""
 
 
-def item_summary(item: dict, open_by_default: bool, suffix: str = "") -> str:
+def item_summary(item: dict, open_by_default: bool, translations: Optional[dict] = None,
+                 suffix: str = "") -> str:
     tasks = task_items(item)
     status = as_text(item.get("status"))
     open_attr = " open" if open_by_default else ""
     return (
         f'<details class="item"{open_attr}><summary>'
         f'<span class="mono">{esc(item.get("id"))}</span>'
-        f"{clipped_span(item.get('description'))}"
+        f"{data_span(item.get('description'), translations)}"
         f"{chip(status)}"
         f"{progress_bar(tasks)}"
-        f"</summary>{suffix}{task_lines(item)}</details>"
+        f"</summary>{suffix}{task_lines(item, translations)}</details>"
     )
 
 
 # --------------------------------------------------------------------------
 # Page sections
 # --------------------------------------------------------------------------
-def render_header(assignment: dict, updated: str) -> str:
+def render_header(assignment: dict, updated: str,
+                  translations: Optional[dict] = None) -> str:
     name = as_text(assignment.get("name"))
     description = as_text(assignment.get("description"))
-    meta = f'<div class="meta">{esc(description)}</div>' if description else ""
+    meta = (
+        f'<div class="meta">{data_span(description, translations)}</div>'
+        if description
+        else ""
+    )
     updated_line = f'{LABELS["updated"]} {esc(updated)}'.strip()
     return (
         '<div class="head"><div>'
@@ -323,7 +367,8 @@ def render_kpis(needs_you: int, external: int, in_progress_items: int,
     )
 
 
-def render_needs_you(entries: Sequence[tuple[dict, dict]]) -> str:
+def render_needs_you(entries: Sequence[tuple[dict, dict]],
+                     translations: Optional[dict] = None) -> str:
     heading = (
         f'<h2>{esc(LABELS["section_needs_you"])}（{len(entries)}）</h2>'
     )
@@ -338,11 +383,14 @@ def render_needs_you(entries: Sequence[tuple[dict, dict]]) -> str:
         )
         if blocker is None:
             who = f'{LABELS["who_needs_you"]} · {task_id} · {LABELS["unclassified"]}'
-            question = as_text(task.get("notes")) or LABELS["no_note"]
+            notes = as_text(task.get("notes"))
+            question = (
+                data_span(notes, translations) if notes else esc(LABELS["no_note"])
+            )
             cards.append(
                 '<div class="card bl">'
                 f'<div class="who">{esc(who)}</div>'
-                f'<div class="q">{esc(question)}</div>'
+                f'<div class="q">{question}</div>'
                 f'<div class="d">{esc(route)}</div>'
                 f'<div class="d">{esc(LABELS["unclassified_hint"])}</div>'
                 "</div>"
@@ -353,15 +401,15 @@ def render_needs_you(entries: Sequence[tuple[dict, dict]]) -> str:
         who = f'{label} · {task_id}'
         summary = as_text(blocker.get("summary"))
         question = as_text(blocker.get("question")) or summary
-        details = [f'<div class="q">{esc(question)}</div>']
+        details = [f'<div class="q">{data_span(question, translations)}</div>']
         if summary and summary != question:
-            details.append(f'<div class="d">{esc(summary)}</div>')
+            details.append(f'<div class="d">{data_span(summary, translations)}</div>')
         details.append(f'<div class="d">{esc(route)}</div>')
         default_action = as_text(blocker.get("default_action"))
         if default_action:
             details.append(
                 f'<div class="d">{esc(LABELS["default_action"])}：'
-                f"<b>{esc(default_action)}</b></div>"
+                f"<b>{data_span(default_action, translations)}</b></div>"
             )
         since = as_text(blocker.get("since"))
         if since:
@@ -374,7 +422,8 @@ def render_needs_you(entries: Sequence[tuple[dict, dict]]) -> str:
     return heading + f'<div class="grid2">{"".join(cards)}</div>'
 
 
-def render_external(entries: Sequence[tuple[dict, dict]]) -> str:
+def render_external(entries: Sequence[tuple[dict, dict]],
+                    translations: Optional[dict] = None) -> str:
     heading = f'<h2>{esc(LABELS["section_external"])}（{len(entries)}）</h2>'
     if not entries:
         return heading + '<div class="card">—</div>'
@@ -392,21 +441,26 @@ def render_external(entries: Sequence[tuple[dict, dict]]) -> str:
         cards.append(
             '<div class="card bl ext">'
             f'<div class="who">{esc(LABELS["who_external"])} · {esc(task.get("id"))}</div>'
-            f'<div class="q">{esc(summary)}</div>'
-            f'<div class="d">{esc(LABELS["waiting_on"])}：<b>{esc(waiting_on)}</b></div>'
+            f'<div class="q">{data_span(summary, translations)}</div>'
+            f'<div class="d">{esc(LABELS["waiting_on"])}：'
+            f"<b>{data_span(waiting_on, translations)}</b></div>"
             f"{detail}</div>"
         )
     return heading + f'<div class="grid2">{"".join(cards)}</div>'
 
 
-def render_active_items(items: Sequence[dict]) -> str:
+def render_active_items(items: Sequence[dict],
+                        translations: Optional[dict] = None) -> str:
     heading = f'<h2>{esc(LABELS["section_active"])}（{len(items)}）</h2>'
     if not items:
         return heading + '<div class="card">—</div>'
-    return heading + "".join(item_summary(item, open_by_default=True) for item in items)
+    return heading + "".join(
+        item_summary(item, open_by_default=True, translations=translations)
+        for item in items
+    )
 
 
-def render_activity(events: Sequence[tuple[str, str]]) -> str:
+def render_activity(events: Sequence[tuple[str, str, str]]) -> str:
     heading = f'<h2>{esc(LABELS["section_activity"])}</h2>'
     if not events:
         return (
@@ -415,10 +469,10 @@ def render_activity(events: Sequence[tuple[str, str]]) -> str:
             + f'<div class="cap">{esc(LABELS["activity_cap"])}</div></div>'
         )
     rows = []
-    for stamp, message in events:
-        visible, full = clip(message)
-        title = f' title="{esc(full)}"' if full is not None else ""
-        rows.append(f'<li><time>{esc(stamp)}</time><span{title}>{esc(visible)}</span></li>')
+    for stamp, original, shown in events:
+        rows.append(
+            f'<li><time>{esc(stamp)}</time>{value_span(original, shown)}</li>'
+        )
     return (
         heading
         + f'<div class="card"><ul class="feed">{"".join(rows)}</ul>'
@@ -453,7 +507,8 @@ def render_activity_row(activity: Sequence[tuple[str, str]],
     )
 
 
-def render_finished(entries: Sequence[tuple[dict, bool]]) -> str:
+def render_finished(entries: Sequence[tuple[dict, bool]],
+                    translations: Optional[dict] = None) -> str:
     heading = f'<h2>{esc(LABELS["section_finished"])}（{len(entries)}）</h2>'
     if not entries:
         return (
@@ -468,7 +523,8 @@ def render_finished(entries: Sequence[tuple[dict, bool]]) -> str:
             blocks.append(
                 '<div class="card">'
                 f'<span class="mono">{esc(record.get("id"))}</span> '
-                f"{clipped_span(record.get('description'))} {chip(record.get('status'))} "
+                f"{data_span(record.get('description'), translations)} "
+                f"{chip(record.get('status'))} "
                 f'<span class="summaryline">{esc(LABELS["summary_only"])}'
                 + (f' · {esc(completed_at)}' if completed_at else "")
                 + "</span></div>"
@@ -480,7 +536,14 @@ def render_finished(entries: Sequence[tuple[dict, bool]]) -> str:
             if completed_at
             else ""
         )
-        blocks.append(item_summary(record, open_by_default=False, suffix=suffix))
+        blocks.append(
+            item_summary(
+                record,
+                open_by_default=False,
+                translations=translations,
+                suffix=suffix,
+            )
+        )
     return (
         heading
         + "".join(blocks)
@@ -513,8 +576,10 @@ def collect_external(items: Sequence[dict]) -> list[tuple[dict, dict]]:
     return entries
 
 
-def collect_activity(items: Sequence[dict], archived: Sequence[dict]) -> list[tuple[str, str]]:
-    events: list[tuple[str, str, str]] = []
+def collect_activity(items: Sequence[dict], archived: Sequence[dict],
+                     translations: Optional[dict] = None) -> list[tuple[str, str, str]]:
+    """Return ``(timestamp, original message, shown message)``, newest first."""
+    events: list[tuple[str, str, str, str]] = []
     for item in list(items) + list(archived):
         for task in task_items(item):
             status = as_text(task.get("status"))
@@ -525,17 +590,20 @@ def collect_activity(items: Sequence[dict], archived: Sequence[dict]) -> list[tu
                 if not stamp:
                     continue
                 verb = LABELS["activity_completed"] if status == "completed" else LABELS["activity_cancelled"]
-                events.append((stamp, verb, f"{task_id} {verb}：{description}"))
+                original = f"{task_id} {verb}：{description}"
+                shown = f"{task_id} {verb}：{translated(description, translations)}"
+                events.append((stamp, verb, original, shown))
             elif status == "blocked":
                 blocker = blocker_of(task)
                 stamp = as_text(blocker.get("since")) if blocker else ""
                 if not stamp:
                     continue
-                detail = task_note(task)
-                message = f"{task_id} {LABELS['activity_blocked']}：{detail or description}"
-                events.append((stamp, LABELS["activity_blocked"], message))
+                verb = LABELS["activity_blocked"]
+                detail = task_note(task) or description
+                shown_detail = shown_note(task, translations) or translated(description, translations)
+                events.append((stamp, verb, f"{task_id} {verb}：{detail}", f"{task_id} {verb}：{shown_detail}"))
     events.sort(key=lambda row: timestamp_key(row[0]), reverse=True)
-    return [(stamp, message) for stamp, _kind, message in events[:ACTIVITY_LIMIT]]
+    return [(stamp, original, shown) for stamp, _kind, original, shown in events[:ACTIVITY_LIMIT]]
 
 
 def collect_finished(item_list: dict, archive: dict) -> tuple[list[tuple[dict, bool]], list[tuple[str, str]]]:
@@ -625,6 +693,13 @@ def build_page(project_root: Path) -> tuple[str, Path]:
     item_list = read_json(current / ITEM_LIST_NAME, required=True)
     archive = read_json(current / ARCHIVE_NAME, required=False)
 
+    # D16: the translation cache is optional. A malformed cache is a warning,
+    # never a failure — the page is rendered with the original strings.
+    translations, warning = ds.load_translations(current / ds.CACHE_NAME)
+    if warning:
+        print(f"render-dashboard: warning: ignoring translation cache: {warning}",
+              file=sys.stderr)
+
     raw_items = item_list.get("items")
     if raw_items is not None and not isinstance(raw_items, list):
         raise RenderError(f'"items" must be a list in {current / ITEM_LIST_NAME}')
@@ -636,7 +711,7 @@ def build_page(project_root: Path) -> tuple[str, Path]:
     needs_you = collect_needs_you(items)
     external = collect_external(items)
     finished, deliverables = collect_finished(item_list, archive)
-    activity = collect_activity(items, [record for record, _ in finished])
+    activity = collect_activity(items, [record for record, _ in finished], translations)
 
     in_progress_items = sum(1 for item in items if as_text(item.get("status")) == "in_progress")
     completed_items = sum(
@@ -649,15 +724,15 @@ def build_page(project_root: Path) -> tuple[str, Path]:
 
     sections = {
         "{{PAGE_TITLE}}": esc(page_title),
-        "{{HEADER}}": render_header(assignment, updated),
+        "{{HEADER}}": render_header(assignment, updated, translations),
         "{{KPIS}}": render_kpis(
             len(needs_you), len(external), in_progress_items, completed_items, total_items
         ),
-        "{{NEEDS_YOU}}": render_needs_you(needs_you),
-        "{{EXTERNAL}}": render_external(external),
-        "{{ACTIVE_ITEMS}}": render_active_items(items),
+        "{{NEEDS_YOU}}": render_needs_you(needs_you, translations),
+        "{{EXTERNAL}}": render_external(external, translations),
+        "{{ACTIVE_ITEMS}}": render_active_items(items, translations),
         "{{ACTIVITY_ROW}}": render_activity_row(activity, deliverables),
-        "{{FINISHED}}": render_finished(finished),
+        "{{FINISHED}}": render_finished(finished, translations),
     }
 
     path = template_path()
@@ -679,21 +754,8 @@ def build_page(project_root: Path) -> tuple[str, Path]:
 
 
 def atomic_write(path: Path, text: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    handle, temp_name = tempfile.mkstemp(
-        prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent)
-    )
-    try:
-        with os.fdopen(handle, "w", encoding="utf-8", newline="\n") as stream:
-            stream.write(text)
-        os.chmod(temp_name, 0o644)
-        os.replace(temp_name, path)
-    except BaseException:
-        try:
-            os.unlink(temp_name)
-        except OSError:
-            pass
-        raise
+    """Atomic write, shared with the translation helper (D16)."""
+    ds.atomic_write(path, text)
 
 
 def render_project(project_root: Path, write: bool = True) -> Path:

@@ -27,6 +27,8 @@ The main agent sends you exactly one plain-text update request in this shape:
 
     PROJECT_ROOT: <absolute project root>
     RENDER_SCRIPT: <absolute path to scripts/render-dashboard.sh>
+    I18N_SCRIPT: <absolute path to scripts/dashboard-i18n.py>
+    DASHBOARD_LANGUAGE: zh-CN        (optional; omit this line to skip translation)
     OPS:
     1. task TASK-001-02 status=completed completed_at=2026-09-28T10:00:00Z
     2. task TASK-001-03 status=blocked blocker.type=needs_user blocker.summary=... blocker.question=... blocker.default_action=... blocker.since=2026-09-28T10:05:00Z
@@ -67,13 +69,25 @@ You must never write:
 - Never change a definition field, never renumber anything, never delete an archive entry.
 - Keep the JSON files valid and human-readable: two-space indent, trailing newline, UTF-8.
 
+## Dashboard language (optional)
+
+When the request carries DASHBOARD_LANGUAGE, refresh the translation cache before rendering. When the line is absent, skip this whole section; the dashboard keeps showing the stored text.
+
+1. Run `python3 I18N_SCRIPT list-missing PROJECT_ROOT --language <language>`. It prints `{"language": ..., "missing": {key: original, ...}}`.
+2. Translate every string in `missing` into that language. Keep ids (ITEM-000, TASK-000-00), file paths, commit SHAs, code, command names and model names exactly as they are. Keep the meaning, add nothing, drop nothing, and do not translate the same string two different ways inside one run.
+3. Write a JSON object `{key: translation}` of your results to a temporary file, then run `python3 I18N_SCRIPT apply PROJECT_ROOT <file>` (or pipe the JSON on stdin with `-`). It merges your translations, prunes entries whose original text is gone, and rejects keys that are not in the current data.
+4. If `list-missing` reports no missing strings, skip straight to rendering.
+
+The cache is `00-current/dashboard-translations.json`: derived, never hand-edited, keyed by the first 16 hex characters of the SHA-256 of the original text. The renderer shows a translation when it has one, otherwise the original, and it keeps the original full text in the hover title. A malformed cache is only a warning for the renderer.
+
 ## Checks after writing (run all of them)
 
 1. Both JSON files parse.
 2. metadata.total_items equals completed + in_progress + blocked + pending + cancelled, and equals the number of active items plus terminal_summary entries in item-list.json.
 3. A blocker exists only on tasks whose status is blocked.
 4. assignment.last_updated is set to the newest timestamp in the request.
-5. Run RENDER_SCRIPT with PROJECT_ROOT as the only argument. It must exit 0.
+5. If DASHBOARD_LANGUAGE was given, 00-current/dashboard-translations.json parses and every key in it still exists in the data.
+6. Run RENDER_SCRIPT with PROJECT_ROOT as the only argument. It must exit 0.
 
 ## Reply
 

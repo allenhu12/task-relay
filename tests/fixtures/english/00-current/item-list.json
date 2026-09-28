@@ -1,0 +1,108 @@
+{
+  "assignment": {
+    "name": "checkout-service refactor",
+    "description": "Payment gateway integration and CSV export rework",
+    "created": "2026-09-20T09:00:00Z",
+    "last_updated": "2026-09-28T15:42:00Z"
+  },
+  "next_override": null,
+  "items": [
+    {
+      "id": "ITEM-003",
+      "category": "implementation",
+      "description": "Payment gateway integration",
+      "priority": 1,
+      "validation_steps": ["one sandbox order succeeds"],
+      "status": "in_progress",
+      "completed_at": null,
+      "notes": "",
+      "working_dir": "20-working/ITEM-003",
+      "files": [],
+      "tasks": [
+        {
+          "id": "TASK-003-01",
+          "description": "Define the payment DTO",
+          "status": "completed",
+          "validation_steps": ["types compile"],
+          "completed_at": "2026-09-28T11:20:00Z",
+          "notes": ""
+        },
+        {
+          "id": "TASK-003-02",
+          "description": "Implement request signing",
+          "status": "in_progress",
+          "validation_steps": ["signature matches the reference vector"],
+          "completed_at": null,
+          "notes": ""
+        },
+        {
+          "id": "TASK-003-03",
+          "description": "Sandbox integration test",
+          "status": "blocked",
+          "validation_steps": ["one order completes"],
+          "completed_at": null,
+          "notes": "No sandbox account",
+          "blocker": {
+            "type": "external",
+            "summary": "No sandbox account yet",
+            "waiting_on": "Finance to enable the sandbox merchant id",
+            "since": "2026-09-26T10:05:00Z"
+          }
+        }
+      ]
+    },
+    {
+      "id": "ITEM-004",
+      "category": "implementation",
+      "description": "Order export to CSV",
+      "priority": 2,
+      "validation_steps": ["file opens in Excel"],
+      "status": "blocked",
+      "completed_at": null,
+      "notes": "Two field questions pending",
+      "working_dir": "20-working/ITEM-004",
+      "files": [],
+      "tasks": [
+        {
+          "id": "TASK-004-01",
+          "description": "Write the export query",
+          "status": "completed",
+          "validation_steps": ["query runs on the read replica"],
+          "completed_at": "2026-09-28T13:55:00Z",
+          "notes": ""
+        },
+        {
+          "id": "TASK-004-02",
+          "description": "Map the CSV fields",
+          "status": "blocked",
+          "validation_steps": ["field list confirmed"],
+          "completed_at": null,
+          "notes": "",
+          "blocker": {
+            "type": "needs_user",
+            "summary": "Should the export include phone numbers?",
+            "question": "Do you want full phone numbers in the CSV?",
+            "default_action": "Mask them as 138****1234",
+            "since": "2026-09-28T14:10:00Z"
+          }
+        }
+      ]
+    }
+  ],
+  "terminal_summary": [
+    {
+      "id": "ITEM-001",
+      "description": "Data model migration",
+      "status": "completed",
+      "completed_at": "2026-09-22T18:00:00Z"
+    }
+  ],
+  "metadata": {
+    "total_items": 3,
+    "completed": 1,
+    "in_progress": 1,
+    "blocked": 1,
+    "pending": 0,
+    "cancelled": 0
+  }
+}

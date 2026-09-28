@@ -456,6 +456,26 @@ after the agent finishes a state write to see the current page (D8, D9).
 
 Long descriptions are shortened on the page; hover one to see the full text.
 
+### Show the dashboard in Chinese
+
+Your state files stay as written — usually English — and only the page changes. The state-writer
+subagent translates the text and caches it; the renderer just displays the cache.
+
+To turn it on, add one line to your project spec file (`10-reference/000_YYYY-MM-DD_spec.md`):
+
+```
+Dashboard language: zh-CN
+```
+
+The next state write refreshes the cache and the page comes back in Chinese. Leave the line out
+to keep the stored text. Nothing else changes: ids (`ITEM-001`, `TASK-001-02`), file paths,
+commit SHAs, commands and model names are never translated. Hover any shortened line to read the
+**original** text, and the cache lives in `00-current/dashboard-translations.json` (generated —
+edit the spec, not that file).
+
+If you would rather not install anything, Safari's built-in translation works on the page too,
+because the dashboard is plain static HTML.
+
 **Install the state-writer subagent** (once per machine). It is the lightweight model that
 applies state updates and re-renders the page:
 

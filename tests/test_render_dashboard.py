@@ -325,7 +325,7 @@ class DashboardTest(unittest.TestCase):
         # 2 needs_user blockers, 1 external, 1 in-progress item, 2 completed of 7.
         self.assertIn('<div class="n">2</div><div class="l">等你处理</div>', text)
         self.assertIn('<div class="n">1</div><div class="l">等外部</div>', text)
-        self.assertIn('<div class="n">2/7</div><div class="l">已完成 item</div>', text)
+        self.assertIn('<div class="n">2/7</div><div class="l">已完成事项</div>', text)
 
     def test_needs_you_card_shows_question_and_default_action(self):
         text = self.dashboard_text("mockup")
@@ -435,6 +435,8 @@ class DashboardTest(unittest.TestCase):
                 if node.level == 0 and node.module:
                     names.add(node.module.split(".")[0])
         allowed = set(sys.stdlib_module_names)
+        # Sibling modules inside scripts/ are part of this repo, not packages.
+        allowed |= {path.stem for path in SCRIPTS_DIR.glob("*.py")}
         self.assertTrue(names.issubset(allowed), msg=f"non-stdlib imports: {names - allowed}")
 
     def test_labels_dict_covers_every_section(self):

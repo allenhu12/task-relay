@@ -13,6 +13,8 @@ Set these values during task-relay initialization. Do not leave
 
 - PROJECT_ROOT: `{PROJECT_ROOT}`
 - Example PROJECT_ROOT: `/path/to/workspace/example-project`
+# Dashboard language: zh-CN   # optional; uncomment to show the dashboard in that
+#                              # language while the stored text stays unchanged (D16)
 - Other sibling checkouts can use the same repo map, for example `/path/to/workspace/example-build-tools`.
 - Controller: `{PROJECT_ROOT}/src/controller`
 - example-service daemon: `{PROJECT_ROOT}/src/apps/example-service`

@@ -119,6 +119,43 @@ Layering note: `dashboard.html` is a derived view, not a source of truth. State
 recovery still reads `item-list.json`, `progress.log`, and the other documented
 files only.
 
+## 00-current/dashboard-translations.json (derived, generated)
+
+Maintainer: `scripts/dashboard-i18n.py`. Reader: `scripts/render-dashboard.py`.
+
+Optional cache that lets the dashboard show a translated page while the stored
+text stays as written (D16). It exists only when the project turns translation on
+with `Dashboard language:` in the spec file.
+
+```json
+{
+  "language": "zh-CN",
+  "entries": {
+    "0f1e2d3c4b5a6978": "支付网关对接与订单导出重构"
+  }
+}
+```
+
+**Key rules**:
+- **Derived file — never hand-edited.** The state-writer subagent fills it with
+  `list-missing` → translate → `apply`; `apply` also prunes entries whose original
+  text is gone.
+- The key is the first 16 hex characters of the SHA-256 of the **exact original
+  UTF-8 string**, so identical text shares one entry and changed text gets a new key.
+- Keys are sorted when the file is written, and the write is atomic.
+- Translatable fields (D16): `assignment.description`; item `description`; task `description`
+  and `notes`; blocker `summary`, `question`, `default_action`, `waiting_on` — for
+  active and archived items. **Not** translated: ids, `assignment.name`,
+  timestamps, statuses, `validation_steps`, `files`, paths, commit SHAs, code,
+  command names, model names.
+- `apply` rejects keys that are not in the current data (exit non-zero, cache
+  untouched). `prune` drops stale entries only.
+- The renderer reads the cache if it exists: a translation wins, otherwise the
+  original is shown. Truncation applies to the shown text, and the hover `title`
+  always holds the **original** full text.
+- A missing cache means "no translations" and is not an error. A malformed cache
+  prints one warning on stderr and the page renders with the original text, exit 0.
+
 ## 00-current/progress.log
 
 Template: `assets/progress.template.log`.
