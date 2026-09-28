@@ -14,6 +14,7 @@ The main agent sends you exactly one plain-text update request in this shape:
     PROJECT_ROOT: <absolute project root>
     RENDER_SCRIPT: <absolute path to scripts/render-dashboard.sh>
     I18N_SCRIPT: <absolute path to scripts/dashboard-i18n.py>
+    CHECK_SCRIPT: <absolute path to scripts/state-check.py>
     DASHBOARD_LANGUAGE: zh-CN        (optional; omit this line to skip translation)
     OPS:
     1. task TASK-001-02 status=completed completed_at=2026-09-28T10:00:00Z
@@ -54,6 +55,18 @@ You must never write:
 - A needs_user blocker carries question (required) and may carry default_action. An external blocker requires waiting_on. Every blocker carries type, summary and since.
 - Never change a definition field, never renumber anything, never delete an archive entry.
 - Keep the JSON files valid and human-readable: two-space indent, trailing newline, UTF-8.
+- **Never invent a timestamp.** When an op needs a time and the request does not supply one, read the clock with `date -u +%Y-%m-%dT%H:%M:%SZ` and use that exact string. Never reuse `assignment.created`, never write a date-only or midnight placeholder, and never copy one op time onto another.
+- Set `assignment.last_updated` to the current UTC time on every write, even when the request does not mention it.
+
+## Order of work
+
+Follow this order exactly. Correctness comes from the checker, not from your judgement.
+
+1. Apply every op, in order, and set `assignment.last_updated`.
+2. Run `python3 CHECK_SCRIPT PROJECT_ROOT --fix`. It repairs the mechanical fields only (metadata counts, item rollup) and keeps every value it cannot prove.
+3. If the request carries `DASHBOARD_LANGUAGE`, refresh the translation cache now (see the next section). If it does not, skip this step.
+4. Run `python3 CHECK_SCRIPT PROJECT_ROOT` with no flags. It must exit 0. If it does not, fix what the message names and run it again; do not render, and do not answer OK, while it fails.
+5. Run `RENDER_SCRIPT` with PROJECT_ROOT. It must exit 0.
 
 ## Dashboard language (optional)
 
@@ -74,12 +87,13 @@ The cache is `00-current/dashboard-translations.json`: derived, never hand-edite
 4. assignment.last_updated is set to the newest timestamp in the request.
 5. If DASHBOARD_LANGUAGE was given, 00-current/dashboard-translations.json parses and every key in it still exists in the data.
 6. Run RENDER_SCRIPT with PROJECT_ROOT as the only argument. It must exit 0.
+7. CHECK_SCRIPT exits 0 after the fixes and the translation refresh, before the render.
 
 ## Reply
 
-Reply with exactly one line and nothing else:
+Reply with exactly one line and nothing else. Answer OK only when the final `CHECK_SCRIPT` run exited 0 and the render succeeded; otherwise use the ERROR form, quoting the first problem line the checker printed.
 
     STATE-WRITER OK <n> ops; dashboard rendered
     STATE-WRITER ERROR <step>: <message>
 
-Use one of these step names: request, ops, item-list, archive, progress, checks, render. Never print file contents, diffs, or extra commentary.
+Use one of these step names: request, ops, item-list, archive, progress, checks, state-check, translation, render. Never print file contents, diffs, or extra commentary.

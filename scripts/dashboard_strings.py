@@ -46,8 +46,24 @@ def translation_key(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:KEY_LENGTH]
 
 
+def current_dir(root: Any) -> Path:
+    """Resolve the state directory.
+
+    Tools accept either a project root (which contains `00-current/`) or the
+    `00-current/` directory itself, so an exported state folder can be checked
+    without being rearranged.
+    """
+    base = Path(root)
+    nested = base / CURRENT_DIR
+    if nested.is_dir():
+        return nested
+    if (base / ITEM_LIST_NAME).exists() or (base / CACHE_NAME).exists():
+        return base
+    return nested
+
+
 def cache_path(root: Any) -> Path:
-    return Path(root) / CURRENT_DIR / CACHE_NAME
+    return current_dir(root) / CACHE_NAME
 
 
 def _as_dict(value: Any) -> dict:
@@ -105,7 +121,7 @@ def read_json_object(path: Path) -> dict:
 
 def load_project_documents(root: Any) -> tuple[dict, dict]:
     """Return ``(item_list, archive)``; the archive may be missing or empty."""
-    current = Path(root) / CURRENT_DIR
+    current = current_dir(root)
     item_list = read_json_object(current / ITEM_LIST_NAME)
     archive_file = current / ARCHIVE_NAME
     archive = read_json_object(archive_file) if archive_file.exists() else {}

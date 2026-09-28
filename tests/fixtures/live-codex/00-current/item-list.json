@@ -1,0 +1,62 @@
+{
+  "assignment": {
+    "name": "demo-app",
+    "description": "Build a small TODO web app",
+    "created": "2026-09-28T00:00:00Z",
+    "last_updated": "2026-09-28T09:09:59Z"
+  },
+  "next_override": null,
+  "items": [
+    {
+      "id": "ITEM-001",
+      "category": "feature",
+      "priority": 1,
+      "description": "Set up the project skeleton and storage layer",
+      "status": "in_progress",
+      "validation_steps": [
+        "app starts"
+      ],
+      "completed_at": null,
+      "notes": "",
+      "working_dir": "20-working/ITEM-001",
+      "tasks": [
+        {
+          "id": "TASK-001-01",
+          "description": "Create the project skeleton",
+          "status": "completed",
+          "validation_steps": [
+            "tree exists"
+          ],
+          "completed_at": "2026-09-28T09:09:59Z",
+          "notes": ""
+        },
+        {
+          "id": "TASK-001-02",
+          "description": "Choose and wire the storage backend",
+          "status": "blocked",
+          "validation_steps": [
+            "storage works"
+          ],
+          "completed_at": null,
+          "notes": "",
+          "blocker": {
+            "type": "needs_user",
+            "summary": "User must choose the storage backend.",
+            "question": "Should this project use PostgreSQL or SQLite? SQLite is the suggested default.",
+            "default_action": "SQLite",
+            "since": "2026-09-28T09:09:59Z"
+          }
+        }
+      ]
+    }
+  ],
+  "terminal_summary": [],
+  "metadata": {
+    "total_items": 1,
+    "completed": 0,
+    "in_progress": 1,
+    "blocked": 0,
+    "pending": 0,
+    "cancelled": 0
+  }
+}

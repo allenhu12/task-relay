@@ -203,6 +203,8 @@ Send one plain-text message. Include every op for this flush, plus the `progress
 ```
 PROJECT_ROOT: /abs/path/to/project
 RENDER_SCRIPT: /abs/path/to/skill/scripts/render-dashboard.sh
+I18N_SCRIPT: /abs/path/to/skill/scripts/dashboard-i18n.py
+CHECK_SCRIPT: /abs/path/to/skill/scripts/state-check.py
 OPS:
 1. task TASK-003-02 status=completed completed_at=2026-09-28T10:00:00Z
 2. task TASK-003-03 status=blocked blocker.type=external blocker.summary=... blocker.waiting_on=... blocker.since=2026-09-28T10:05:00Z
@@ -215,6 +217,12 @@ NOTE: batch of 4 ops from session 7
 Supported ops: task status / notes / completed_at; set or clear a task `blocker`
 (`blocker=none` clears it); item status; `archive <ITEM-ID>` for a terminal item (moves the full
 record and writes the compact `terminal_summary` entry); `progress.log:` bullets.
+
+The writer then runs, in order: the ops, `state-check.py --fix` (metadata counts and the item
+rollup), the translation refresh when `DASHBOARD_LANGUAGE` is present, `state-check.py` (which
+must exit 0), and finally the renderer. **Item rollup** is therefore automatic: an item becomes
+`blocked` when every non-terminal task is blocked, and returns to `in_progress` when one is no
+longer blocked — the main agent does not track that by hand.
 
 The subagent replies with exactly one line:
 `STATE-WRITER OK <n> ops; dashboard rendered` or

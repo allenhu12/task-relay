@@ -499,6 +499,14 @@ If `python3` is missing the wrapper prints a clear message and exits 127 instead
 broken page. If `item-list.json` is missing or invalid, the render fails and your existing
 `dashboard.html` is left untouched.
 
+**Check your state files yourself** (read-only; add `--fix` to repair counts and the item
+blocked/in-progress rollup — it never invents a timestamp or rewrites your text):
+
+```bash
+python3 scripts/state-check.py .            # one line per problem, exit 1 if any
+python3 scripts/state-check.py . --fix      # repair mechanical fields, then re-check
+```
+
 ## Working Across Different AI Clients
 
 Task Relay works across different AI agents because state is in files, not memory.

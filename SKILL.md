@@ -260,6 +260,7 @@ This installs `~/.claude/agents/task-relay-state-writer.md` (Claude Code, `model
 PROJECT_ROOT: /abs/path/to/project
 RENDER_SCRIPT: /abs/path/to/skill/scripts/render-dashboard.sh
 I18N_SCRIPT: /abs/path/to/skill/scripts/dashboard-i18n.py
+CHECK_SCRIPT: /abs/path/to/skill/scripts/state-check.py
 DASHBOARD_LANGUAGE: zh-CN          # optional; omit to keep the stored text
 OPS:
 1. task TASK-001-02 status=completed completed_at=2026-09-28T10:00:00Z
@@ -271,6 +272,17 @@ OPS:
    <one bullet line per entry to append>
 NOTE: <optional free text>
 ```
+
+**Order of work.** Apply the ops → `state-check.py --fix` (repairs metadata counts and the item
+rollup) → translation refresh when `DASHBOARD_LANGUAGE` is set → `state-check.py` must exit 0 →
+render. The writer answers `STATE-WRITER OK` only when that final check passed; otherwise it
+answers `STATE-WRITER ERROR state-check: <first problem line>`.
+
+**Item rollup (enforced).** An item becomes `blocked` when every non-terminal task is blocked,
+and returns to `in_progress` once a non-terminal task is no longer blocked. `state-check.py`
+computes this, so the writer does not have to remember it. The writer also never invents a
+timestamp: it reads `date -u +%Y-%m-%dT%H:%M:%SZ` for anything the request does not supply, and
+refreshes `assignment.last_updated` on every write.
 
 **Dashboard language (D16/D17).** Read `Dashboard language:` from the project spec file
 (`10-reference/000_YYYY-MM-DD_spec.md`). When it is set, pass that value as `DASHBOARD_LANGUAGE`
@@ -321,7 +333,7 @@ Then the main agent:
   - Deep's old `abandoned` outcome maps to `cancelled`. Do **NOT** introduce `abandoned`.
 - **At most one** `in_progress` task within the `in_progress` item. Task execution order is user-chosen.
 - **Item completion rollup**: every task must be `completed` or `cancelled`; every `cancelled` task must have `notes`; all item-level `validation_steps` must pass.
-- **Item `blocked` rule**: an item is `blocked` only when every non-terminal task is `blocked`, or the user explicitly blocks it. A single blocked task does not block the item.
+- **Item `blocked` rule**: an item is `blocked` when every non-terminal task is `blocked` (or the user explicitly blocks it), and it returns to `in_progress` once a non-terminal task is no longer blocked. A single blocked task does not block the item. The state writer applies this rollup, and `scripts/state-check.py` verifies it.
 - **Whole-item `cancelled` lifecycle**: user-initiated or agent-proposed → **user-confirmed**; task cascade; archive to `terminal_summary` with `status: cancelled`; update `metadata.cancelled`.
 - **`metadata.cancelled`** is required. All status counts must sum to `total_items`.
 
@@ -525,6 +537,7 @@ Executable utilities:
 - `rotate-progress-log.sh` - Rotates `00-current/progress.log` to `90-archive/progress-log/progress-archive-YYYY-MM-DD.log` when it grows past thresholds (default 1000 lines / 200 KB), seeds a fresh log with a continuity header, and regenerates `90-archive/progress-log/PROGRESS-ARCHIVE-MANIFEST.md`. Run with `--manifest-only` to rebuild the manifest only. **State-recovery rule: only ever read `00-current/progress.log`; NEVER auto-read `90-archive/`.**
 - `render-dashboard.sh` / `render-dashboard.py` - Render `00-current/dashboard.html` from `item-list.json` + `item-list-archive.json` (Python 3 standard library only; the shell wrapper reports a clear error and exits 127 when `python3` is missing).
 - `dashboard-i18n.py` / `dashboard_strings.py` - Maintain the dashboard translation cache (`list-missing`, `apply`, `prune`) and hold the shared list of translatable fields (D16).
+- `state-check.py` - Deterministic state checker (`<root> [--fix] [--language]`): metadata counts, blocker placement, item rollup, timestamps, and untranslated strings. Exits 1 on any problem; `--fix` repairs only metadata and the rollup. Run it by hand any time.
 - `install-state-writer.sh` - Install the state-writer subagent for Claude Code and Codex CLI (`--dry-run`, `--force`, `--claude-only`, `--codex-only`).
 
 ### references/

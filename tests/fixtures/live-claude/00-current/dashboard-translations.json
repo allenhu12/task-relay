@@ -1,0 +1,12 @@
+{
+  "language": "zh-CN",
+  "entries": {
+    "3c6abf76d2b5f27a": "需要存储后端选择（PostgreSQL vs SQLite）",
+    "442a583f1d349186": "SQLite（建议默认）",
+    "653278194e870bc0": "存储应该使用 PostgreSQL 还是 SQLite？",
+    "6c7fc61a931d9af7": "选择并连接存储后端",
+    "86ea0fbfac7930f9": "构建一个小型 TODO 网络应用",
+    "ed1ca7eaa17229f6": "创建项目骨架",
+    "ed1fd97986df12ca": "设置项目骨架和存储层"
+  }
+}
