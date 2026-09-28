@@ -461,17 +461,20 @@ Long descriptions are shortened on the page; hover one to see the full text.
 Your state files stay as written — usually English — and only the page changes. The state-writer
 subagent translates the text and caches it; the renderer just displays the cache.
 
-To turn it on, add one line to your project spec file (`10-reference/000_YYYY-MM-DD_spec.md`):
+The setting lives in one line of your project spec file (`10-reference/000_YYYY-MM-DD_spec.md`).
+The agent asks for it when it initializes a project; to change it yourself, edit that line:
 
 ```
-Dashboard language: zh-CN
+Dashboard language: zh-CN     # show the page in Chinese
+Dashboard language: none      # show the stored text as written (the explicit "off" value)
 ```
 
-The next state write refreshes the cache and the page comes back in Chinese. Leave the line out
-to keep the stored text. Nothing else changes: ids (`ITEM-001`, `TASK-001-02`), file paths,
-commit SHAs, commands and model names are never translated. Hover any shortened line to read the
-**original** text, and the cache lives in `00-current/dashboard-translations.json` (generated —
-edit the spec, not that file).
+The next state write refreshes the cache and the page comes back in the new language, so a switch
+takes effect then rather than immediately. Nothing else changes: ids (`ITEM-001`, `TASK-001-02`),
+file paths, commit SHAs, commands and model names are never translated. Hover any shortened line
+to read the **original** text, and the cache lives in `00-current/dashboard-translations.json`
+(generated — edit the spec, not that file). If you open a project written before this field
+existed, the agent asks you once and adds the line for you.
 
 If you would rather not install anything, Safari's built-in translation works on the page too,
 because the dashboard is plain static HTML.

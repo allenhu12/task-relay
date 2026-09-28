@@ -35,6 +35,15 @@ cat 00-current/user-decision.md
 SPEC_FILE=$(ls -t 10-reference/*_spec.md 2>/dev/null | head -1)
 cat "$SPEC_FILE"
 
+# 6b. Dashboard language. The spec carries a line "Dashboard language: <code>"
+#     (or "none" to show the stored text as written). When that line is missing
+#     — an older project, before this field existed — ask the user once, propose
+#     the language they write in (for example zh-CN) as the default, and add the
+#     line only after they answer. This one line is the ONLY write an agent may
+#     make to the spec outside initialization; never edit anything else in it.
+#       code -> pass DASHBOARD_LANGUAGE: <code> in every update request
+#       none -> omit DASHBOARD_LANGUAGE (no translation)
+
 # 7. Read reference manifest and check for staleness
 cat 10-reference/MANIFEST.md
 ls 10-reference/
@@ -67,6 +76,10 @@ npm test  # or equivalent
 - Read `00-current/memory.md` if it exists
 - Read `10-reference/000_YYYY-MM-DD_spec.md` (reference paths and URLs)
 - If the spec file is missing in an existing project, ask the user for it; do not create it during execution
+- **Dashboard language**: read the spec's `Dashboard language:` line. If it is missing, ask the user
+  once which language the dashboard should show (propose the language they write in as the default)
+  and add that single line only after they answer — the one agent-allowed spec write outside
+  initialization. `none` means: pass no `DASHBOARD_LANGUAGE` in update requests.
 - Read `10-reference/MANIFEST.md` (discover available reference files); run `ls 10-reference/` and update MANIFEST if files added/removed
 - If `90-archive/progress-log/PROGRESS-ARCHIVE-MANIFEST.md` exists, read it. Pull a specific archive only on demand — never speculatively
 - Based on the current item's category and description, load only relevant reference files (progressive disclosure)

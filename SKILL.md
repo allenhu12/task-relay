@@ -183,11 +183,11 @@ User can explicitly specify phase:
 Run this workflow when starting a NEW assignment (no state files exist).
 
 **Steps (summary).**
-- **Step 0** — Create the 9-zone folder structure (`00-current/`, `05-plans/`, `10-reference/`, `20-working/`, `50-drafts/`, `60-handoffs/`, `80-issues/`, `90-archive/`); copy `AGENTS.md`, `user-decision.md`, `memory.md`, spec template; run `scripts/generate-manifest.sh ./10-reference`. Per-item `20-working/<ITEM-ID>/` folders are created **lazily** at execution, not here.
+- **Step 0** — Create the 9-zone folder structure (`00-current/`, `05-plans/`, `10-reference/`, `20-working/`, `50-drafts/`, `60-handoffs/`, `80-issues/`, `90-archive/`); copy `AGENTS.md`, `user-decision.md`, `memory.md`, spec template; run `scripts/generate-manifest.sh ./10-reference`. Per-item `20-working/<ITEM-ID>/` folders are created **lazily** at execution, not here. **Ask the user which language the dashboard should show** (propose the language they write in, e.g. `zh-CN`) and write `Dashboard language: <code>` — or `Dashboard language: none` — into `10-reference/000_*_spec.md`. This is required, for custom specs too.
 - **Step 1** — Analyze the user's requirements; clarify scope; for code projects resolve `PROJECT_ROOT`/`TARGET_ROOT`/`REPO_PROFILE_ROOT`; record reference paths in `10-reference/000_*_spec.md`.
 - **Step 1.5** — *Knowledge Front-Loading* (highly recommended): structured Q&A, one question at a time, update reference docs after each answer. Highest-ROI activity at project start.
 - **Step 2** — Decompose into items **only if the user explicitly asks** ("generate items", "decompose the project", "fill in the item list"). When you do decompose, apply the decomposition rules (see `references/decomposition-rules.md`). Each item must have ≥1 task in `tasks[]`; a trivial item gets one task mirroring its description.
-- **Step 3** — Create state files from `assets/` templates: `item-list.json` (starts empty unless Step 2 produced items), `item-list-archive.json`, `progress.log`, `init.sh`/`init.md`, initialization entry in `progress.log`.
+- **Step 3** — Create state files from `assets/` templates: `item-list.json` (starts empty unless Step 2 produced items), `item-list-archive.json`, `progress.log`, `init.sh`/`init.md`, initialization entry in `progress.log`. Then install the state writer and render the first (empty) `00-current/dashboard.html` — after the spec carries its `Dashboard language:` line.
 - **Step 4** — Verify baseline (folders, state files, spec, run `init.sh`).
 - **Step 5** — Handoff: summarize Session 1; if items exist, recommend the first; otherwise note that the item list is empty pending user direction.
 
@@ -212,7 +212,7 @@ Full procedure, delta semantics, validation failures, and acceptance criteria: s
 Run this workflow when CONTINUING an existing assignment (state files exist).
 
 **Steps (summary).**
-- **Step 1 — State Recovery** (CRITICAL): `tail -100 00-current/progress.log`; read `item-list.json`, `user-decision.md`, `memory.md`, spec file, and `10-reference/MANIFEST.md`. Do **NOT** load `item-list-archive.json` or progress-archive files speculatively. Run `./init.sh`. Full checklist: `references/execution-phase.md` § State Recovery.
+- **Step 1 — State Recovery** (CRITICAL): `tail -100 00-current/progress.log`; read `item-list.json`, `user-decision.md`, `memory.md`, spec file, and `10-reference/MANIFEST.md`. Do **NOT** load `item-list-archive.json` or progress-archive files speculatively. Run `./init.sh`. **Dashboard language**: if the spec has no `Dashboard language:` line (older projects), ask the user once, propose a default, and add the line only after the answer — the one agent-allowed spec write outside initialization (`none` means omit `DASHBOARD_LANGUAGE`). Full checklist: `references/execution-phase.md` § State Recovery.
 - **Step 2 — Selection Gate** (read-only, then confirm before action):
   - If an item is already `in_progress` (overflow from prior session): do NOT run item selection. If a task is `in_progress`, propose resuming that task; else list remaining `pending` tasks for the **user to choose**.
   - Otherwise: identify the candidate item — honor `next_override` if set; else lowest-`priority` `pending` item; if all pending are `blocked` → report "nothing actionable" and stop.

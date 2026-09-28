@@ -35,6 +35,14 @@ cp {SKILL_ASSETS_PATH}/memory.template.md ./00-current/memory.md
 # Create reference spec file (fill in placeholder paths)
 cp {SKILL_ASSETS_PATH}/spec.template.md ./10-reference/000_$(date +%Y-%m-%d)_spec.md
 
+# REQUIRED before you finish initialization: ask the user which language the
+# dashboard page should show. Propose the language the user writes in
+# (for example `zh-CN` when the request is in Chinese) as the default.
+# Then write the answer as an explicit line in the spec file:
+#   - Dashboard language: `zh-CN`    -> dashboard shows Chinese, stored text unchanged
+#   - Dashboard language: `none`     -> dashboard shows the stored text as written
+# Write it even when you author a custom spec instead of copying this template.
+
 # Generate initial MANIFEST.md for reference files (empty at start)
 bash {SKILL_SCRIPTS_PATH}/generate-manifest.sh ./10-reference
 
@@ -60,6 +68,10 @@ ls -la 10-reference/
    - Replace `{PROJECT_ROOT}`, `{TARGET_ROOT}`, and `{REPO_PROFILE_ROOT}` in `10-reference/000_YYYY-MM-DD_spec.md`. Do not leave `{PROJECT_ROOT}` unresolved in a live project spec.
 4. Update `10-reference/000_YYYY-MM-DD_spec.md` with project-specific reference paths
 5. Understand the domain (code project, research, writing, data analysis, etc.)
+6. Ask which language the dashboard page should show, then record the answer in the spec as
+   `Dashboard language: <code>` — or `Dashboard language: none` to show the stored text as
+   written. Propose the language the user writes in as the default. Never omit this line and
+   never leave the template placeholder, even when you author a custom spec.
 
 ### Multi-Repo Source Map Handling
 
@@ -198,6 +210,11 @@ bash {SKILL_SCRIPTS_PATH}/render-dashboard.sh .               # writes 00-curren
 During execution the state writer re-renders it after each update request, so initialization is
 the only time the main agent runs the renderer directly
 (`references/state-writer-contract.md`, `references/state-file-specs.md`).
+
+Before this first render, the spec must already carry `Dashboard language:`. When the value is a
+language code instead of `none`, refresh the translation cache first — `python3
+{SKILL_SCRIPTS_PATH}/dashboard-i18n.py list-missing .`, translate the strings, then `apply` — so
+the first page is not left in the stored language (D16).
 
 ### 3.2 progress.log
 

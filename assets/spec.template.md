@@ -9,12 +9,17 @@ Created: {YYYY-MM-DD}
 <!-- All paths are on the local workstation's local storage -->
 
 Set these values during task-relay initialization. Do not leave
-`{PROJECT_ROOT}` unresolved in a live project spec.
+`{PROJECT_ROOT}` unresolved in a live project spec, and never leave the
+`Dashboard language` field as the template placeholder.
 
 - PROJECT_ROOT: `{PROJECT_ROOT}`
 - Example PROJECT_ROOT: `/path/to/workspace/example-project`
-# Dashboard language: zh-CN   # optional; uncomment to show the dashboard in that
-#                              # language while the stored text stays unchanged (D16)
+- Dashboard language: `none`
+  <!-- REQUIRED. Ask the user during initialization which language the dashboard
+       should show, then write the answer here as a code such as `zh-CN`, or
+       `none` to show the stored text as written. A code turns on dashboard
+       translation (D16); `none` turns it off. The agent may edit this one line
+       later only after asking the user. -->
 - Other sibling checkouts can use the same repo map, for example `/path/to/workspace/example-build-tools`.
 - Controller: `{PROJECT_ROOT}/src/controller`
 - example-service daemon: `{PROJECT_ROOT}/src/apps/example-service`
