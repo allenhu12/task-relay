@@ -94,7 +94,7 @@ Install both definitions once per machine with `scripts/install-state-writer.sh`
 
 | CLI | Installed path | Model |
 |---|---|---|
-| Claude Code | `${CLAUDE_HOME:-$HOME/.claude}/agents/task-relay-state-writer.md` | `haiku` |
+| Claude Code | `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/agents/task-relay-state-writer.md` | `haiku` |
 | Codex CLI | `${CODEX_HOME:-$HOME/.codex}/agents/task-relay-state-writer.toml` | `gpt-6-luna` (`model_reasoning_effort = "medium"`) |
 
 ### Codex: the `agent_type` question (TASK-001-04 open point)

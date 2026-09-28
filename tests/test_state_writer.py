@@ -123,7 +123,7 @@ class InstallerTest(unittest.TestCase):
     def run_installer(self, *args: str, claude_home: Path | None = None,
                       codex_home: Path | None = None) -> subprocess.CompletedProcess:
         env = os.environ.copy()
-        env["CLAUDE_HOME"] = str(claude_home or self.claude_home)
+        env["CLAUDE_CONFIG_DIR"] = str(claude_home or self.claude_home)
         env["CODEX_HOME"] = str(codex_home or self.codex_home)
         return subprocess.run(
             ["/bin/bash", str(INSTALLER), *args],

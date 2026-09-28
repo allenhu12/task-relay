@@ -4,7 +4,7 @@
 #
 # Usage: install-state-writer.sh [--dry-run] [--force] [--claude-only|--codex-only]
 #
-#   Claude Code -> ${CLAUDE_HOME:-$HOME/.claude}/agents/task-relay-state-writer.md
+#   Claude Code -> ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/agents/task-relay-state-writer.md
 #   Codex CLI   -> ${CODEX_HOME:-$HOME/.codex}/agents/task-relay-state-writer.toml
 #
 # An existing file that is identical to the shipped definition counts as
@@ -18,7 +18,7 @@ usage() {
 Usage: install-state-writer.sh [OPTIONS]
 
 Install the task-relay state-writer subagent for both CLIs:
-  Claude Code -> ${CLAUDE_HOME:-$HOME/.claude}/agents/task-relay-state-writer.md
+  Claude Code -> ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/agents/task-relay-state-writer.md
   Codex CLI   -> ${CODEX_HOME:-$HOME/.codex}/agents/task-relay-state-writer.toml
 
 Options:
@@ -116,9 +116,9 @@ install_one() {
 status=0
 
 if [ "$do_claude" -eq 1 ]; then
-  claude_home=${CLAUDE_HOME:-$HOME/.claude}
+  claude_dir=${CLAUDE_CONFIG_DIR:-$HOME/.claude}
   install_one "$source_root/assets/agents/claude/task-relay-state-writer.md" \
-    "$claude_home/agents/task-relay-state-writer.md" || status=1
+    "$claude_dir/agents/task-relay-state-writer.md" || status=1
 fi
 
 if [ "$do_codex" -eq 1 ]; then
