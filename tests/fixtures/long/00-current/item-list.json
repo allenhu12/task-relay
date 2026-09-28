@@ -1,0 +1,50 @@
+{
+  "assignment": {
+    "name": "超长描述项目",
+    "description": "描述超过 120 个字符，用来验证截断和 title 属性；这段文字本身也超过了一百二十个字符，所以它也会被截断，并且全文会放进 title 属性里供鼠标悬停查看。",
+    "created": "2026-09-20T00:00:00Z",
+    "last_updated": "2026-09-26T09:00:00Z"
+  },
+  "next_override": null,
+  "items": [
+    {
+      "id": "ITEM-020",
+      "category": "implementation",
+      "description": "把结算流程拆成四个独立步骤，每一步都要有幂等保护、失败重试、结构化日志，并且在不改变对外接口的前提下把内部实现替换掉；这个描述故意写得比一百二十个字符长很多，用来验证渲染器会截断可见文本并把完整原文放进 title 属性，方便鼠标悬停阅读完整内容，再补一些字符确保长度足够超过一百二十。",
+      "priority": 1,
+      "validation_steps": ["四步全部幂等"],
+      "status": "in_progress",
+      "completed_at": null,
+      "notes": "",
+      "working_dir": "20-working/ITEM-020",
+      "files": [],
+      "tasks": [
+        {
+          "id": "TASK-020-01",
+          "description": "拆分第一步：校验输入并生成结算单草稿，包含幂等键、重试策略和结构化日志字段的落地；这段描述同样超过一百二十个字符，用来确认任务级别的截断逻辑与 item 级别一致。",
+          "status": "completed",
+          "validation_steps": ["草稿幂等"],
+          "completed_at": "2026-09-26T08:00:00Z",
+          "notes": "这是一条很长的备注，用来验证备注也会被截断到一百二十个字符并且全文进入 title 属性，方便用户用鼠标悬停阅读完整内容，这里再补一些字符确保长度足够。"
+        },
+        {
+          "id": "TASK-020-02",
+          "description": "拆分第二步：计算价格与折扣",
+          "status": "pending",
+          "validation_steps": ["价格计算单测通过"],
+          "completed_at": null,
+          "notes": ""
+        }
+      ]
+    }
+  ],
+  "terminal_summary": [],
+  "metadata": {
+    "total_items": 1,
+    "completed": 0,
+    "in_progress": 1,
+    "blocked": 0,
+    "pending": 0,
+    "cancelled": 0
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "assignment": {
+    "name": "特殊字符 <项目> & \"引号\"",
+    "description": "描述里有 < > & \" ' 这些字符，还有一个 <script>alert(1)</script> 片段",
+    "created": "2026-09-20T00:00:00Z",
+    "last_updated": "2026-09-25T10:00:00Z"
+  },
+  "next_override": null,
+  "items": [
+    {
+      "id": "ITEM-030",
+      "category": "test",
+      "description": "转义测试 <b>加粗</b> & \"引号\" & '单引号'",
+      "priority": 1,
+      "validation_steps": ["页面结构不被破坏"],
+      "status": "in_progress",
+      "completed_at": null,
+      "notes": "",
+      "working_dir": "20-working/ITEM-030",
+      "files": [],
+      "tasks": [
+        {
+          "id": "TASK-030-01",
+          "description": "描述里有 <script>alert('x')</script> 与 & 和 \" 与 ' 号",
+          "status": "in_progress",
+          "validation_steps": ["转义正确"],
+          "completed_at": null,
+          "notes": "备注 <img src=x onerror=alert(1)> & \"quoted\""
+        },
+        {
+          "id": "TASK-030-02",
+          "description": "另一个 <script> 片段",
+          "status": "blocked",
+          "validation_steps": [],
+          "completed_at": null,
+          "notes": "",
+          "blocker": {
+            "type": "needs_user",
+            "summary": "标题里要不要保留 <尖括号>？",
+            "question": "描述里的 <tag> 和 & 号要原样显示吗？",
+            "default_action": "原样显示，转义后可见",
+            "since": "2026-09-25T09:30:00Z"
+          }
+        }
+      ]
+    }
+  ],
+  "terminal_summary": [
+    {
+      "id": "ITEM-031",
+      "description": "已结束但 archive 里没有记录 <only>",
+      "status": "completed",
+      "completed_at": "2026-09-24T10:00:00Z"
+    }
+  ],
+  "metadata": {
+    "total_items": 2,
+    "completed": 1,
+    "in_progress": 1,
+    "blocked": 0,
+    "pending": 0,
+    "cancelled": 0
+  }
+}

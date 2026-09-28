@@ -1,0 +1,50 @@
+{
+  "assignment": {
+    "name": "老数据项目",
+    "description": "blocked 但没有 blocker 对象的旧数据",
+    "created": "2026-09-01T00:00:00Z",
+    "last_updated": "2026-09-27T08:00:00Z"
+  },
+  "next_override": null,
+  "items": [
+    {
+      "id": "ITEM-010",
+      "category": "implementation",
+      "description": "旧版导入脚本改造",
+      "priority": 1,
+      "validation_steps": ["导入结果与旧版一致"],
+      "status": "blocked",
+      "completed_at": null,
+      "notes": "有一个问题卡住了",
+      "working_dir": "20-working/ITEM-010",
+      "files": [],
+      "tasks": [
+        {
+          "id": "TASK-010-01",
+          "description": "确认新表的主键策略",
+          "status": "blocked",
+          "validation_steps": ["主键策略写进文档"],
+          "completed_at": null,
+          "notes": "不确定要用自增还是 UUID，需要用户决定"
+        },
+        {
+          "id": "TASK-010-02",
+          "description": "改导入脚本",
+          "status": "pending",
+          "validation_steps": ["脚本跑通一次"],
+          "completed_at": null,
+          "notes": ""
+        }
+      ]
+    }
+  ],
+  "terminal_summary": [],
+  "metadata": {
+    "total_items": 1,
+    "completed": 0,
+    "in_progress": 0,
+    "blocked": 1,
+    "pending": 0,
+    "cancelled": 0
+  }
+}

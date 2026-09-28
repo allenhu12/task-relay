@@ -1,0 +1,19 @@
+{
+  "assignment": {
+    "name": "空项目",
+    "description": "没有任何 item 的项目",
+    "created": "2026-09-28T00:00:00Z",
+    "last_updated": "2026-09-28T00:00:00Z"
+  },
+  "next_override": null,
+  "items": [],
+  "terminal_summary": [],
+  "metadata": {
+    "total_items": 0,
+    "completed": 0,
+    "in_progress": 0,
+    "blocked": 0,
+    "pending": 0,
+    "cancelled": 0
+  }
+}

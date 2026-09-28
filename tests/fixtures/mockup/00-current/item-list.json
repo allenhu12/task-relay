@@ -1,0 +1,211 @@
+{
+  "assignment": {
+    "name": "checkout-service 重构",
+    "description": "支付网关对接与订单导出重构",
+    "created": "2026-09-20T09:00:00Z",
+    "last_updated": "2026-09-28T15:42:00Z"
+  },
+  "next_override": null,
+  "items": [
+    {
+      "id": "ITEM-003",
+      "category": "implementation",
+      "description": "支付网关对接",
+      "priority": 1,
+      "validation_steps": ["沙箱下单成功一次", "回调验签通过"],
+      "status": "in_progress",
+      "completed_at": null,
+      "notes": "",
+      "working_dir": "20-working/ITEM-003",
+      "files": [],
+      "tasks": [
+        {
+          "id": "TASK-003-01",
+          "description": "定义支付接口 DTO",
+          "status": "completed",
+          "validation_steps": ["类型检查通过"],
+          "completed_at": "2026-09-28T11:20:00Z",
+          "notes": ""
+        },
+        {
+          "id": "TASK-003-02",
+          "description": "实现下单签名",
+          "status": "in_progress",
+          "validation_steps": ["签名向量比对一致"],
+          "completed_at": null,
+          "notes": ""
+        },
+        {
+          "id": "TASK-003-03",
+          "description": "沙箱联调",
+          "status": "blocked",
+          "validation_steps": ["沙箱环境完成一笔订单"],
+          "completed_at": null,
+          "notes": "没有沙箱账号",
+          "blocker": {
+            "type": "external",
+            "summary": "没有支付网关沙箱账号",
+            "waiting_on": "财务部开通沙箱商户号",
+            "since": "2026-09-26T10:05:00Z"
+          }
+        },
+        {
+          "id": "TASK-003-04",
+          "description": "回调验签 + 重试",
+          "status": "pending",
+          "validation_steps": ["重复回调只记一次"],
+          "completed_at": null,
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "id": "ITEM-004",
+      "category": "implementation",
+      "description": "订单导出 CSV",
+      "priority": 2,
+      "validation_steps": ["导出文件能被 Excel 打开"],
+      "status": "blocked",
+      "completed_at": null,
+      "notes": "等用户确认两个字段问题",
+      "working_dir": "20-working/ITEM-004",
+      "files": [],
+      "tasks": [
+        {
+          "id": "TASK-004-01",
+          "description": "导出查询 SQL",
+          "status": "completed",
+          "validation_steps": ["SQL 在只读库跑通"],
+          "completed_at": "2026-09-28T13:55:00Z",
+          "notes": ""
+        },
+        {
+          "id": "TASK-004-02",
+          "description": "字段映射",
+          "status": "blocked",
+          "validation_steps": ["字段清单与产品确认"],
+          "completed_at": null,
+          "notes": "",
+          "blocker": {
+            "type": "needs_user",
+            "summary": "导出是否包含手机号",
+            "question": "CSV 里要放完整手机号吗？",
+            "default_action": "脱敏为 138****1234",
+            "since": "2026-09-28T14:10:00Z"
+          }
+        },
+        {
+          "id": "TASK-004-03",
+          "description": "文件编码",
+          "status": "blocked",
+          "validation_steps": ["Excel 打开无乱码"],
+          "completed_at": null,
+          "notes": "",
+          "blocker": {
+            "type": "needs_user",
+            "summary": "Excel 兼容性",
+            "question": "用 UTF-8 带 BOM 还是 GBK？",
+            "default_action": "UTF-8 带 BOM",
+            "since": "2026-09-28T14:12:00Z"
+          }
+        }
+      ]
+    },
+    {
+      "id": "ITEM-005",
+      "category": "refactor",
+      "description": "通知服务拆分",
+      "priority": 3,
+      "validation_steps": ["通知全部走新模块"],
+      "status": "pending",
+      "completed_at": null,
+      "notes": "",
+      "working_dir": null,
+      "files": [],
+      "tasks": [
+        {
+          "id": "TASK-005-01",
+          "description": "梳理现有通知调用点",
+          "status": "pending",
+          "validation_steps": ["调用点清单完成"],
+          "completed_at": null,
+          "notes": ""
+        },
+        {
+          "id": "TASK-005-02",
+          "description": "抽出 notify 模块",
+          "status": "pending",
+          "validation_steps": ["模块单测通过"],
+          "completed_at": null,
+          "notes": ""
+        },
+        {
+          "id": "TASK-005-03",
+          "description": "接入消息队列",
+          "status": "pending",
+          "validation_steps": ["队列重试生效"],
+          "completed_at": null,
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "id": "ITEM-006",
+      "category": "cleanup",
+      "description": "旧 v1 API 下线",
+      "priority": 4,
+      "validation_steps": ["v1 调用量归零"],
+      "status": "pending",
+      "completed_at": null,
+      "notes": "",
+      "working_dir": null,
+      "files": [],
+      "tasks": [
+        {
+          "id": "TASK-006-01",
+          "description": "统计 v1 调用量",
+          "status": "pending",
+          "validation_steps": ["拿到调用量报表"],
+          "completed_at": null,
+          "notes": ""
+        },
+        {
+          "id": "TASK-006-02",
+          "description": "加 Deprecation 响应头",
+          "status": "cancelled",
+          "validation_steps": [],
+          "completed_at": "2026-09-27T09:30:00Z",
+          "notes": "网关层已统一加"
+        }
+      ]
+    }
+  ],
+  "terminal_summary": [
+    {
+      "id": "ITEM-002",
+      "description": "登录页重做",
+      "status": "completed",
+      "completed_at": "2026-09-25T17:00:00Z"
+    },
+    {
+      "id": "ITEM-007",
+      "description": "优惠券 A/B 实验",
+      "status": "cancelled",
+      "completed_at": "2026-09-24T12:00:00Z"
+    },
+    {
+      "id": "ITEM-001",
+      "description": "数据模型迁移",
+      "status": "completed",
+      "completed_at": "2026-09-22T18:00:00Z"
+    }
+  ],
+  "metadata": {
+    "total_items": 7,
+    "completed": 2,
+    "in_progress": 1,
+    "blocked": 1,
+    "pending": 2,
+    "cancelled": 1
+  }
+}

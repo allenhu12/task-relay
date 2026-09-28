@@ -1,0 +1,109 @@
+{
+  "items": [
+    {
+      "id": "ITEM-002",
+      "category": "feature",
+      "description": "登录页重做",
+      "priority": 5,
+      "validation_steps": ["登录流程端到端通过"],
+      "status": "completed",
+      "completed_at": "2026-09-25T17:00:00Z",
+      "notes": "",
+      "working_dir": "20-working/ITEM-002",
+      "files": ["src/auth/login.tsx", "src/auth/validate.ts"],
+      "tasks": [
+        {
+          "id": "TASK-002-01",
+          "description": "新登录表单",
+          "status": "completed",
+          "validation_steps": ["表单渲染正常"],
+          "completed_at": "2026-09-24T15:00:00Z",
+          "notes": ""
+        },
+        {
+          "id": "TASK-002-02",
+          "description": "表单校验",
+          "status": "completed",
+          "validation_steps": ["非法输入被拦下"],
+          "completed_at": "2026-09-25T10:00:00Z",
+          "notes": ""
+        },
+        {
+          "id": "TASK-002-03",
+          "description": "记住我",
+          "status": "cancelled",
+          "validation_steps": [],
+          "completed_at": "2026-09-25T16:30:00Z",
+          "notes": "安全评审不允许"
+        }
+      ]
+    },
+    {
+      "id": "ITEM-007",
+      "category": "experiment",
+      "description": "优惠券 A/B 实验",
+      "priority": 6,
+      "validation_steps": ["实验分流比例正确"],
+      "status": "cancelled",
+      "completed_at": "2026-09-24T12:00:00Z",
+      "notes": "产品方撤回需求",
+      "working_dir": "20-working/ITEM-007",
+      "files": [],
+      "tasks": [
+        {
+          "id": "TASK-007-01",
+          "description": "实验分流",
+          "status": "cancelled",
+          "validation_steps": [],
+          "completed_at": "2026-09-24T12:00:00Z",
+          "notes": "随 item 取消：产品方撤回需求"
+        },
+        {
+          "id": "TASK-007-02",
+          "description": "埋点",
+          "status": "cancelled",
+          "validation_steps": [],
+          "completed_at": "2026-09-24T12:00:00Z",
+          "notes": "随 item 取消：产品方撤回需求"
+        }
+      ]
+    },
+    {
+      "id": "ITEM-001",
+      "category": "migration",
+      "description": "数据模型迁移",
+      "priority": 7,
+      "validation_steps": ["回填后行数一致"],
+      "status": "completed",
+      "completed_at": "2026-09-22T18:00:00Z",
+      "notes": "",
+      "working_dir": "20-working/ITEM-001",
+      "files": [
+        "migrations/001_init.sql",
+        "scripts/backfill.py",
+        "docs/schema.md",
+        "docs/rollout.md",
+        "docs/rollback.md",
+        "docs/notes.md"
+      ],
+      "tasks": [
+        {
+          "id": "TASK-001-01",
+          "description": "新表结构",
+          "status": "completed",
+          "validation_steps": ["迁移可重复执行"],
+          "completed_at": "2026-09-21T14:00:00Z",
+          "notes": ""
+        },
+        {
+          "id": "TASK-001-02",
+          "description": "数据回填脚本",
+          "status": "completed",
+          "validation_steps": ["回填幂等"],
+          "completed_at": "2026-09-22T17:30:00Z",
+          "notes": ""
+        }
+      ]
+    }
+  ]
+}

@@ -135,6 +135,72 @@
                 "notes": {
                   "type": "string",
                   "description": "Additional context. REQUIRED when status == cancelled."
+                },
+                "blocker": {
+                  "type": "object",
+                  "description": "Optional blocker record (D6). Only set while the task status is `blocked`. Required when the task is blocked and the cause is known: `type` and `summary` and `since` are always present, plus `question` for type `needs_user` or `waiting_on` for type `external`. Remove the whole object when the task leaves `blocked` (for example when the user answers or the external dependency clears).",
+                  "required": ["type", "summary", "since"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": ["needs_user", "external"],
+                      "description": "Who or what can clear the blocker. needs_user = only the user can answer or decide; external = an outside system, person, or event must act."
+                    },
+                    "summary": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "One short line naming what is blocked."
+                    },
+                    "question": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "The question the agent needs the user to answer. REQUIRED when type == needs_user."
+                    },
+                    "default_action": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Optional suggested action to take if the user does not answer. Advice only; the agent still stops and asks (D7)."
+                    },
+                    "waiting_on": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "What the task is waiting for. REQUIRED when type == external."
+                    },
+                    "since": {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "ISO-8601 timestamp when the task first became blocked by this cause."
+                    }
+                  },
+                  "allOf": [
+                    {
+                      "if": {
+                        "properties": {
+                          "type": {
+                            "const": "needs_user"
+                          }
+                        },
+                        "required": ["type"]
+                      },
+                      "then": {
+                        "required": ["question"]
+                      }
+                    },
+                    {
+                      "if": {
+                        "properties": {
+                          "type": {
+                            "const": "external"
+                          }
+                        },
+                        "required": ["type"]
+                      },
+                      "then": {
+                        "required": ["waiting_on"]
+                      }
+                    }
+                  ]
                 }
               }
             }

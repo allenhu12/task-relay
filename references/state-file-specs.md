@@ -24,6 +24,38 @@ Template: `assets/item-list.template.json`. Schema:
 - **Item completion rollup**: item may be set `completed` only when every task is `completed` or `cancelled` AND every `cancelled` task has a non-empty `notes`, AND all item-level `validation_steps` pass.
 - **`working_dir`**: null until the item first transitions to `in_progress`. Set to `20-working/<ITEM-ID>` lazily.
 - **`files`**: agent-maintained list of files inside `working_dir`.
+- **Task `blocker`** (optional, v1.3+): a structured record of *why* a task is
+  `blocked`. Only set while the task is blocked, and removed as soon as the task
+  leaves `blocked`. See "Task `blocker`" below.
+
+### Task `blocker`
+
+`blocker` is an optional object on a **task** (never on an item; an item's blocked
+state is the rollup of its tasks). Set it only while that task's `status` is
+`blocked`, and delete the whole object when the task leaves `blocked` — for example
+when the user answers the question or the external dependency clears.
+
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `type` | `needs_user` \| `external` | yes | Who or what can clear the blocker. |
+| `summary` | string | yes | One short line naming what is blocked. |
+| `question` | string | when `type == needs_user` | The question the user must answer. |
+| `default_action` | string | no | Suggested action if the user does not answer. Advice only — see D7 (the agent still stops and asks). |
+| `waiting_on` | string | when `type == external` | What the task waits for. |
+| `since` | date-time string | yes | When the task first became blocked by this cause. |
+
+Conditional requirements are machine-checked by `references/item-list-schema.json`
+using JSON-Schema `if`/`then`, so the `question` requirement fires only for
+`needs_user` and the `waiting_on` requirement only for `external`.
+
+**Legacy data (D14)**: a task with `status: "blocked"` and no `blocker` object is
+valid. The dashboard shows it under "需要你处理" as **未分类** and displays its
+`notes`, with a hint asking the user to say which kind of blocker it is. There is
+no one-time migration: the state writer adds the `blocker` object the next time it
+writes state for that task, after the user answers.
+
+**Dashboard view**: `needs_user` blockers (plus legacy unclassified blockers) appear
+under "需要你处理"; `external` blockers appear under "等外部".
 
 ### Whole-item `cancelled` lifecycle
 
@@ -49,6 +81,43 @@ Template: `assets/item-list-archive.template.json`.
 - Do **NOT** read during State Recovery — only on demand when detailed history of a specific terminal item is needed.
 - Never delete entries.
 - Archived records include `working_dir` and `files` paths (stable; no auto-move on completion).
+
+## 00-current/dashboard.html (derived, generated)
+
+Generator: `scripts/render-dashboard.py` (thin wrapper: `scripts/render-dashboard.sh`).
+Skeleton: `assets/dashboard.template.html`.
+
+Usage: `python3 scripts/render-dashboard.py <project_root>` reads
+`<project_root>/00-current/item-list.json` and
+`<project_root>/00-current/item-list-archive.json` (the archive may be missing or
+empty) and writes `<project_root>/00-current/dashboard.html`.
+
+**Key rules**:
+- **Derived file — never hand-edited.** Every value on the page comes from the two
+  JSON files plus the template. Edit the JSON, then re-render.
+- **Rewritten in full on every state write** (D8): after any task status change,
+  item archival, or `progress.log` append, the state writer re-runs the renderer.
+  The renderer never appends.
+- **Atomic write**: the renderer writes a temporary file in the same directory and
+  renames it over `dashboard.html`, so a reader never sees a half-written page.
+- **Failure is non-destructive**: if `item-list.json` is missing or is not valid
+  JSON, the renderer exits non-zero with a clear message on stderr and leaves any
+  existing `dashboard.html` untouched.
+- **Pure static HTML** (D9): no JavaScript, expand/collapse via `<details>`,
+  colours follow the system through `prefers-color-scheme`, CSS is inline, and the
+  page loads no external resource (no fonts, CDNs, or images).
+- **Deterministic** (D15 A4): the "更新于" line comes from
+  `assignment.last_updated` in `item-list.json`, never from the current clock, so
+  the same input always produces byte-identical output.
+- **Bounded size** (D4): the full page is rewritten each time; recent activity is
+  capped at 5 entries and latest deliverables at 5 entries; finished items are
+  collapsed; each task shows only id, description, status, and a one-line note.
+- **No `python3`** (D13): the wrapper prints `render-dashboard: python3 not found;
+  install Python 3 or ask the main agent to stop (D11)` on stderr and exits 127.
+
+Layering note: `dashboard.html` is a derived view, not a source of truth. State
+recovery still reads `item-list.json`, `progress.log`, and the other documented
+files only.
 
 ## 00-current/progress.log
 
