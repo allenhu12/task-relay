@@ -183,6 +183,22 @@ Fill in `item-list.json`:
 
 `item-list-archive.json` starts empty.
 
+### 3.1b First dashboard render (empty state)
+
+Initialization renders the first dashboard so the user has a page from day one:
+
+```bash
+bash {SKILL_SCRIPTS_PATH}/install-state-writer.sh --dry-run   # show where the subagent will go
+bash {SKILL_SCRIPTS_PATH}/install-state-writer.sh             # install once per machine (D10)
+bash {SKILL_SCRIPTS_PATH}/render-dashboard.sh .               # writes 00-current/dashboard.html
+```
+
+`00-current/dashboard.html` is a **derived** file: generated from `item-list.json` and
+`item-list-archive.json`, never hand-edited, and rewritten in full on every state write (D8).
+During execution the state writer re-renders it after each update request, so initialization is
+the only time the main agent runs the renderer directly
+(`references/state-writer-contract.md`, `references/state-file-specs.md`).
+
 ### 3.2 progress.log
 
 ```bash
@@ -213,6 +229,9 @@ ls -la 00-current/ 10-reference/ 20-working/ 80-issues/ 90-archive/
 # Verify state files exist
 ls -la 00-current/item-list.json 00-current/item-list-archive.json \
        00-current/progress.log 00-current/user-decision.md
+
+# Verify the dashboard rendered (empty state is fine)
+ls -la 00-current/dashboard.html
 
 # Verify reference spec exists
 ls -la 10-reference/*_spec.md

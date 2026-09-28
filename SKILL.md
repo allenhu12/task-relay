@@ -221,7 +221,7 @@ Run this workflow when CONTINUING an existing assignment (state files exist).
 - **Step 3 — Task Loop** (user-driven, Option B):
   - Create `20-working/<ITEM-ID>/` folder lazily on first transition to `in_progress` (if not yet present).
   - Present remaining `pending` tasks; **user selects** which task to run next. Agent does **not** auto-pick.
-  - Mark selected task `in_progress`; do the work; validate; mark `completed` / `blocked` / `cancelled`; **flush `item-list.json` immediately**.
+  - Mark selected task `in_progress`; do the work; validate; mark `completed` / `blocked` / `cancelled`; **flush `item-list.json` immediately** by sending one update request to the state writer (see § State Writer). The subagent also re-renders `00-current/dashboard.html`.
   - **STOP and ask again** — never auto-advance to the next task.
   - If context fills before the item is done (overflow): record completed tasks in `item-list.json`; leave item `in_progress`; write handoff note to `progress.log`; end session. Next session resumes the `in_progress` task or user picks next.
 - **Step 4 — Validation** (CRITICAL): run every entry in `validation_steps`. ONLY mark `completed` if ALL pass; otherwise fix or mark `blocked`.
@@ -229,9 +229,74 @@ Run this workflow when CONTINUING an existing assignment (state files exist).
   - An item may be `completed` only when **every task is either `completed` or `cancelled`** AND item-level `validation_steps` all pass. Every `cancelled` task must carry a `notes` explanation.
   - For **cancelled items**: require user confirmation; cascade — set every non-`completed` task to `cancelled` with `notes` referencing the item cancellation.
   - For **terminal items** (completed or cancelled): move full record to `item-list-archive.json`; append compact entry to `terminal_summary` (with `status: completed|cancelled`); remove from `items[]`; update metadata. Append session/handoff note to `progress.log`.
+  - Send the archive op and the `progress.log` lines in the **same** update request, so the JSON and the dashboard change together.
 - **Step 6 — Session Summary**: report progress, files updated, next item or "nothing actionable".
 
 Full procedure with all commands, examples, algorithms, and acceptance criteria: see `references/execution-phase.md`.
+
+## State Writer (Subagent)
+
+Every task-relay state write goes through the **`task-relay-state-writer`** subagent (D1, D12). It runs on a cheap model on both CLIs, applies one update request, and re-renders the dashboard. It never decides what the work should be.
+
+**Install once per machine** (first use, or when the definition is missing):
+
+```bash
+bash {SKILL_SCRIPTS_PATH}/install-state-writer.sh            # install for both CLIs
+bash {SKILL_SCRIPTS_PATH}/install-state-writer.sh --dry-run  # preview without writing
+```
+
+This installs `~/.claude/agents/task-relay-state-writer.md` (Claude Code, `model: haiku`) and `~/.codex/agents/task-relay-state-writer.toml` (Codex CLI, `model = "gpt-6-luna"`). The exact instruction text, the update-request grammar, and the Codex install evidence live in `references/state-writer-contract.md`.
+
+**How to call it**
+
+| CLI | Call |
+|---|---|
+| Claude Code | Agent/Task tool with subagent `task-relay-state-writer`, passing the update request as the prompt |
+| Codex CLI | `spawn_agent` with `agent_type = "task-relay-state-writer"` and the update request as `message`. Do **not** pass `model` or `reasoning_effort`; the role pins both. |
+
+**The update request** — one plain-text message:
+
+```
+PROJECT_ROOT: /abs/path/to/project
+RENDER_SCRIPT: /abs/path/to/skill/scripts/render-dashboard.sh
+OPS:
+1. task TASK-001-02 status=completed completed_at=2026-09-28T10:00:00Z
+2. task TASK-001-03 status=blocked blocker.type=needs_user blocker.summary=... blocker.question=... blocker.since=...
+3. task TASK-001-03 status=in_progress blocker=none
+4. item ITEM-001 status=completed
+5. archive ITEM-001 status=completed completed_at=2026-09-28T11:00:00Z
+6. progress.log:
+   <one bullet line per entry to append>
+NOTE: <optional free text>
+```
+
+**Who writes what (D12)**
+
+- The **subagent** writes `00-current/item-list.json`, `00-current/item-list-archive.json`, and appends to `00-current/progress.log`, then runs the render script so `00-current/dashboard.html` is regenerated. Every state write includes the render.
+- The **main agent** writes `20-working/<ITEM-ID>/log.md` and `memory.md` itself.
+- Nobody writes `00-current/user-decision.md`.
+
+**Blocked tasks must carry a `blocker` (D6, D7)**
+
+- `needs_user` — `question` is required, `default_action` is optional. Use it when only the user can decide.
+- `external` — `waiting_on` is required. Use it when an outside system, person, or event must act.
+- Every blocker carries `type`, `summary`, and `since`. Clear it with `blocker=none` when the task leaves `blocked`.
+- For `needs_user` the agent **stops and asks the user**. `default_action` is a suggestion only; never continue on it by default.
+- Legacy (D14): a `blocked` task with no `blocker` shows on the dashboard as 未分类 with its `notes`. Add the `blocker` in the next update request once the user says which kind it is. There is no bulk migration.
+
+**If the state writer fails (D11)**
+
+Detection signals:
+
+- Claude Code: the Agent/Task call reports the subagent is not found, or the spawn fails.
+- Codex CLI: `spawn_agent` fails with `unknown agent_type 'task-relay-state-writer'`, the model is not available, or the spawn errors. If `spawn_agent` has **no** `agent_type` parameter at all, no agent definition is installed.
+- Either CLI: the subagent returns `STATE-WRITER ERROR <step>: <message>`, or the render script exits non-zero.
+
+Then the main agent:
+
+1. **Stops.** It does not start the next task, and it does not write state itself yet.
+2. Reports which step failed, the exact error, and the fix (usually `bash {SKILL_SCRIPTS_PATH}/install-state-writer.sh`, then restart the CLI).
+3. Offers exactly three choices and waits for the user: ① retry the subagent after the fix; ② the main agent writes the state itself this time and runs the render script; ③ write nothing and end the session.
 
 ## Tasks under Items
 
@@ -361,7 +426,12 @@ Full procedure, categorization rules, anti-patterns, and acceptance criteria: se
 - Flush `item-list.json` after every task status change (not just at item completion)
 - Always update `00-current/item-list-archive.json` when an item becomes terminal
 - Always append to `00-current/progress.log`
+- Route every flush through the `task-relay-state-writer` subagent, which also re-renders `00-current/dashboard.html` (see § State Writer). The only exception is fallback ② under D11, after the user chooses it.
 - Do this BEFORE session ends
+
+🚫 **NEVER hand-edit the state files while the state writer is available**
+- `00-current/item-list.json`, `00-current/item-list-archive.json`, and `00-current/progress.log` belong to the subagent
+- If the subagent cannot run, follow the D11 fallback: stop, report, and offer the three choices
 
 🚫 **NEVER delete items from item-list.json**
 - Cancelled items are archived to `terminal_summary`, not deleted
@@ -379,6 +449,7 @@ Full procedure, categorization rules, anti-patterns, and acceptance criteria: se
 | `00-current/item-list.json` | Active items (with tasks[]) + compact terminal summaries | `assets/item-list.template.json` |
 | `00-current/item-list-archive.json` | Full records of terminal items (read on demand) | `assets/item-list-archive.template.json` |
 | `00-current/progress.log` | Single global session narrative | `assets/progress.template.log` |
+| `00-current/dashboard.html` | **Derived** static HTML dashboard (generated, never hand-edited) | `assets/dashboard.template.html` |
 | `00-current/user-decision.md` | User decisions (**read-only** for agents) | `assets/user-decision.template.md` |
 | `00-current/memory.md` | Captured insights with `[N=k]` counters | `assets/memory.template.md` |
 | `10-reference/MANIFEST.md` | Index of reference files (auto-generated) | `scripts/generate-manifest.sh` |
@@ -433,11 +504,16 @@ Template files for creating new task relay assignments:
 - `init.template.sh` - Template for code projects
 - `init.template.md` - Template for non-code assignments
 - `task-input-batch.template.yaml` - Interface 3 shape (consumed by batch ingestion)
+- `dashboard.template.html` - Static skeleton for the generated `00-current/dashboard.html` (inline CSS, no JS)
+- `agents/claude/task-relay-state-writer.md` - Claude Code state-writer subagent (installed to `~/.claude/agents/`)
+- `agents/codex/task-relay-state-writer.toml` - Codex CLI state-writer agent (installed to `~/.codex/agents/`)
 
 ### scripts/
 Executable utilities:
 - `generate-manifest.sh` - Generates / regenerates `10-reference/MANIFEST.md` from file frontmatters
 - `rotate-progress-log.sh` - Rotates `00-current/progress.log` to `90-archive/progress-log/progress-archive-YYYY-MM-DD.log` when it grows past thresholds (default 1000 lines / 200 KB), seeds a fresh log with a continuity header, and regenerates `90-archive/progress-log/PROGRESS-ARCHIVE-MANIFEST.md`. Run with `--manifest-only` to rebuild the manifest only. **State-recovery rule: only ever read `00-current/progress.log`; NEVER auto-read `90-archive/`.**
+- `render-dashboard.sh` / `render-dashboard.py` - Render `00-current/dashboard.html` from `item-list.json` + `item-list-archive.json` (Python 3 standard library only; the shell wrapper reports a clear error and exits 127 when `python3` is missing).
+- `install-state-writer.sh` - Install the state-writer subagent for Claude Code and Codex CLI (`--dry-run`, `--force`, `--claude-only`, `--codex-only`).
 
 ### references/
 Additional documentation:
@@ -448,6 +524,7 @@ Additional documentation:
 - `initialization-phase.md` - Full Initialization Phase procedure
 - `execution-phase.md` - Full Execution Phase procedure (selection gate, task loop, archival)
 - `state-file-specs.md` - Full per-file rules and invariants
+- `state-writer-contract.md` - State-writer instruction text (single source), update-request grammar, install notes, and the Codex `agent_type` evidence
 - `issues-backlog.md` - Full Issues Backlog workflows
 - `batch-ingest.md` - Full batch-ingestion procedure (Interface 3, including tasks[] contract)
 - `learn-workflow.md` - Full `/task-relay learn` retrospective

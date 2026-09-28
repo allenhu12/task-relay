@@ -53,10 +53,28 @@ This project uses a 9-zone folder system:
 3. **ALWAYS read `10-reference/MANIFEST.md`** during State Recovery. Use it to discover available reference files. Only open files relevant to the current item. Check staleness by comparing `ls 10-reference/` against entries; update MANIFEST if files were added or removed.
 4. **NEVER work on multiple items per session** - ONE item per session, no exceptions.
 5. **NEVER mark completed without validation** - ALL item-level `validation_steps` must pass AND every task must be `completed` or `cancelled`.
-6. **NEVER skip state updates** - Flush `item-list.json` after every task status change; always update `item-list-archive.json` when an item becomes terminal; always append to `progress.log`.
+6. **NEVER skip state updates** - Flush `item-list.json` after every task status change; always update `item-list-archive.json` when an item becomes terminal; always append to `progress.log`. Route every flush through the `task-relay-state-writer` subagent, which also re-renders `00-current/dashboard.html`. See "State Writer" below.
 7. **NEVER auto-advance to the next task** - After each task completes (or is cancelled/blocked), STOP and ask the user which task to run next. Task order is user-chosen.
 8. **NEVER execute without confirming item selection** - Present the candidate item and wait for user confirmation before marking it `in_progress`. A status check is read-only.
 9. **Rotate `progress.log` when it gets large.** Before ending the session, if `wc -l 00-current/progress.log` exceeds ~1000 lines (or ~200 KB), run `bash {SKILL_SCRIPTS_PATH}/rotate-progress-log.sh`. This archives to `90-archive/progress-log/progress-archive-YYYY-MM-DD.log` and regenerates `90-archive/progress-log/PROGRESS-ARCHIVE-MANIFEST.md`. NEVER truncate `progress.log` by hand. NEVER auto-read `90-archive/` during state recovery.
+10. **NEVER hand-edit the state files while the state writer is available** - `item-list.json`, `item-list-archive.json`, and `progress.log` belong to the `task-relay-state-writer` subagent. If it fails, stop and offer the three D11 choices instead of writing them yourself.
+
+### State Writer
+
+State writes go through a lightweight subagent so the main agent keeps its context:
+
+| CLI | Call |
+|---|---|
+| Claude Code | Agent/Task tool, subagent `task-relay-state-writer` |
+| Codex CLI | `spawn_agent` with `agent_type = "task-relay-state-writer"` (the role pins model and reasoning effort — do not override them) |
+
+Install once per machine with `bash {SKILL_SCRIPTS_PATH}/install-state-writer.sh`. Full contract: `{SKILL_REFERENCES_PATH}/state-writer-contract.md`.
+
+- Send **one update request** per flush: `PROJECT_ROOT`, `RENDER_SCRIPT`, the ordered ops (task status/notes/completed_at, set or clear `blocker`, item status, archive a terminal item), and the `progress.log` bullet lines.
+- A `blocked` task must carry a classified `blocker`: `needs_user` (`question`, optional `default_action`) or `external` (`waiting_on`), plus `type`, `summary`, `since`. For `needs_user`, **stop and ask the user**; `default_action` is a suggestion only.
+- Legacy `blocked` tasks without a `blocker` show as 未分类 on the dashboard; add the `blocker` in the next request once the user says which kind it is.
+- The subagent owns `00-current/item-list.json`, `00-current/item-list-archive.json`, and `00-current/progress.log`, and re-renders `00-current/dashboard.html`. The main agent still writes `20-working/<ITEM-ID>/log.md` and `memory.md`. Nobody writes `00-current/user-decision.md`.
+- If the subagent cannot run (not found, `unknown agent_type`, model unavailable, spawn error, or a `STATE-WRITER ERROR` reply): **stop**, report the failing step + error + fix (`scripts/install-state-writer.sh`), and offer exactly three choices — ① retry after the fix; ② the main agent writes the state itself this time and runs the render script; ③ write nothing and end the session. Wait for the user.
 
 ---
 
@@ -130,6 +148,9 @@ Update the following files in `00-current/` to reflect the session outcomes:
 - `progress.log` - Append session summary (with handoff note if mid-item overflow)
 - `item-list.json` - Flush task/item status changes and metadata; on terminal status, move full record to archive and add compact entry to `terminal_summary`
 - `item-list-archive.json` - Append full record of terminal items
+- `dashboard.html` - Re-rendered by the state writer after every update request (never hand-edited)
+
+The three JSON/log updates go out as **one update request to the `task-relay-state-writer` subagent**, which also re-renders `dashboard.html`.
 
 **Remember:** Never modify `user-decision.md` - this is user-maintained only.
 

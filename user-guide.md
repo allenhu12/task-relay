@@ -431,6 +431,54 @@ git commit -m "Session 5: Completed ITEM-012 - Authentication middleware"
 # Edit 00-current/user-decision.md with your notes, preferences, and context
 ```
 
+## The Status Dashboard
+
+Task Relay keeps a visual status page at **`00-current/dashboard.html`**. It is written for you,
+not for the agent.
+
+**How to open it**: double-click the file, or open it in any app that previews HTML (Safari,
+DEVONthink, an editor's preview pane). It is one self-contained file — inline CSS, system fonts,
+**no JavaScript, no external resources, no auto-refresh**. It follows your system light/dark
+setting. Because nothing is scripted, it renders even where scripts are blocked. Reload it (⌘R)
+after the agent finishes a state write to see the current page (D8, D9).
+
+**What each section means**
+
+| Section | Meaning |
+|---|---|
+| KPI row | How many blockers need you, how many wait on something external, how many items are in progress, completed items / total |
+| 需要你处理 | Tasks blocked on **you** — the question, where it sits (item → task), the suggested default action, and how long it has been waiting. Anything marked 未分类 is old data: tell the agent whether it is a question for you or an external wait |
+| 等外部 | Tasks blocked on something outside your control — what they wait for and since when |
+| 进行中和待办的 Items | Active items, expanded by default. Each shows its status, a progress bar (done + cancelled / all tasks), and every task with a one-line note |
+| 最近动态 | The 5 most recent state changes, taken from the JSON timestamps |
+| 最新交付物 | Up to 5 files from your most recently completed items |
+| 已结束的 Items | Every finished item, collapsed by default. Click to expand its tasks |
+
+Long descriptions are shortened on the page; hover one to see the full text.
+
+**Install the state-writer subagent** (once per machine). It is the lightweight model that
+applies state updates and re-renders the page:
+
+```bash
+bash scripts/install-state-writer.sh            # run inside the task-relay skill folder
+bash scripts/install-state-writer.sh --dry-run  # preview
+bash scripts/install-state-writer.sh --help     # all options
+```
+
+Use `--claude-only` or `--codex-only` if you work with a single client. The installer refuses to
+overwrite a file you edited; add `--force` to replace it.
+
+**Run the renderer by hand** (for example after editing `item-list.json` yourself):
+
+```bash
+bash scripts/render-dashboard.sh .        # from the project root
+# writes 00-current/dashboard.html
+```
+
+If `python3` is missing the wrapper prints a clear message and exits 127 instead of writing a
+broken page. If `item-list.json` is missing or invalid, the render fails and your existing
+`dashboard.html` is left untouched.
+
 ## Working Across Different AI Clients
 
 Task Relay works across different AI agents because state is in files, not memory.

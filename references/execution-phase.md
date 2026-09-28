@@ -142,10 +142,10 @@ After the item is confirmed `in_progress`, enter the task loop.
 2. List all `pending` tasks (do NOT show completed/cancelled unless the user asks).
 3. Ask the user: "Which task should we work on? [list]"
 4. **Wait for user selection.** The agent does not auto-pick.
-5. Mark the selected task `in_progress`; flush `item-list.json` immediately.
+5. Mark the selected task `in_progress`; flush `item-list.json` immediately through the state writer (§ Step 3.5).
 6. Do the work for that task.
 7. Run the task's `validation_steps`.
-8. Mark the task `completed` / `blocked` / `cancelled`; flush `item-list.json`.
+8. Mark the task `completed` / `blocked` / `cancelled`; flush `item-list.json` through the state writer (§ Step 3.5). For `blocked`, classify the blocker first — see § Step 3.5.
 9. Append progress note to `20-working/<ITEM-ID>/log.md`.
 10. **STOP. Go back to step 2 of this loop** (list remaining tasks, ask again).
 
@@ -175,6 +175,89 @@ If context fills before the item is done:
    **Handoff note**: Context limit reached. Resume with TASK-003-02 next session.
    ```
 3. End the session. Do NOT clear `in_progress` on item or task.
+
+## Step 3.5: State Write via the State Writer
+
+All state writes go through the **`task-relay-state-writer`** subagent (D1, D12). The subagent
+owns `item-list.json`, `item-list-archive.json` and `progress.log`, and it re-renders
+`00-current/dashboard.html` after every write. Instruction text, the full update-request
+grammar, and install notes: `references/state-writer-contract.md`.
+
+Install once per machine, if it is not already there:
+
+```bash
+bash {SKILL_SCRIPTS_PATH}/install-state-writer.sh
+```
+
+### How to call it
+
+| CLI | Call |
+|---|---|
+| Claude Code | Agent/Task tool, subagent `task-relay-state-writer`, update request as the prompt |
+| Codex CLI | `spawn_agent` with `agent_type = "task-relay-state-writer"` and the update request as `message`. Do **not** pass `model` or `reasoning_effort` — the role pins them (`gpt-6-luna`, medium). |
+
+### The update request
+
+Send one plain-text message. Include every op for this flush, plus the `progress.log` lines:
+
+```
+PROJECT_ROOT: /abs/path/to/project
+RENDER_SCRIPT: /abs/path/to/skill/scripts/render-dashboard.sh
+OPS:
+1. task TASK-003-02 status=completed completed_at=2026-09-28T10:00:00Z
+2. task TASK-003-03 status=blocked blocker.type=external blocker.summary=... blocker.waiting_on=... blocker.since=2026-09-28T10:05:00Z
+3. item ITEM-003 status=in_progress
+4. progress.log:
+   TASK-003-02 completed; validation passed.
+NOTE: batch of 4 ops from session 7
+```
+
+Supported ops: task status / notes / completed_at; set or clear a task `blocker`
+(`blocker=none` clears it); item status; `archive <ITEM-ID>` for a terminal item (moves the full
+record and writes the compact `terminal_summary` entry); `progress.log:` bullets.
+
+The subagent replies with exactly one line:
+`STATE-WRITER OK <n> ops; dashboard rendered` or
+`STATE-WRITER ERROR <step>: <message>`.
+
+### Blocked tasks: classify the blocker (D6, D7, D14)
+
+When a task becomes `blocked`, the update request must carry a `blocker` object:
+
+| Type | Required | Use when |
+|---|---|---|
+| `needs_user` | `question` (+ optional `default_action`) | only the user can answer or decide |
+| `external` | `waiting_on` | an outside system, person, or event must act first |
+
+Both carry `type`, `summary`, `since`. Clear the blocker with `blocker=none` when the task
+leaves `blocked` — a blocker must never survive on a non-blocked task.
+
+For `needs_user`: **stop and ask the user**. `default_action` is a suggestion shown on the
+dashboard; never continue on it automatically (D7).
+
+Legacy data (D14): a `blocked` task with no `blocker` renders under "需要你处理" as 未分类 with
+its `notes`. Do not migrate in bulk — the next time the user says which kind it is, add the
+`blocker` in that update request.
+
+### If the state writer fails (D11)
+
+Detection signals:
+
+- Claude Code: subagent not found, or the Agent/Task call fails to spawn.
+- Codex CLI: `spawn_agent` fails with `unknown agent_type 'task-relay-state-writer'`, the model
+  is unavailable, or the spawn errors. If `spawn_agent` exposes **no** `agent_type` parameter,
+  no agent definition is installed.
+- Either CLI: a `STATE-WRITER ERROR <step>: <message>` reply, or a non-zero render exit.
+
+Then, in order:
+
+1. **Stop.** Do not start the next task. Do not write the state files by hand yet.
+2. Report the failed step, the exact error, and the fix — usually
+   `bash {SKILL_SCRIPTS_PATH}/install-state-writer.sh`, then restart the CLI.
+3. Offer exactly three choices and wait for the user:
+   - ① retry the subagent after the fix;
+   - ② the main agent writes the state itself this time and runs the render script;
+   - ③ write nothing and end the session.
 
 ## Step 4: Validation
 
@@ -224,6 +307,11 @@ If the user wants to cancel an entire item:
 ### 5.3 Terminal archival (completed or cancelled)
 
 Run this for any item that just became terminal (`completed` or `cancelled`):
+
+> **Send this as one update request** (§ Step 3.5): `archive <ITEM-ID> status=... completed_at=...`
+> plus the `progress.log:` bullets for the session. The state writer performs steps A–D below and
+> re-renders `00-current/dashboard.html`. Do not edit the three state files by hand while the
+> subagent is available.
 
 ```json
 // Step A: Append the FULL item record to 00-current/item-list-archive.json
@@ -354,11 +442,13 @@ Report to user:
 - 00-current/item-list.json
 - 00-current/item-list-archive.json
 - 00-current/progress.log
+- 00-current/dashboard.html (re-rendered by the state writer)
 - 20-working/ITEM-003/log.md
 
 **Next Session**: Start with ITEM-004 - Implement password reset flow
 
 📖 See 00-current/progress.log for session history
+📊 Open 00-current/dashboard.html for the visual status page
 📁 See 20-working/ITEM-003/ for item artifacts
 ```
 
