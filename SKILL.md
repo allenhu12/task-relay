@@ -183,7 +183,7 @@ User can explicitly specify phase:
 Run this workflow when starting a NEW assignment (no state files exist).
 
 **Steps (summary).**
-- **Step 0** — Create the 9-zone folder structure (`00-current/`, `05-plans/`, `10-reference/`, `20-working/`, `50-drafts/`, `60-handoffs/`, `80-issues/`, `90-archive/`); copy `AGENTS.md`, `user-decision.md`, `memory.md`, spec template; run `scripts/generate-manifest.sh ./10-reference`. Per-item `20-working/<ITEM-ID>/` folders are created **lazily** at execution, not here. **Ask the user which language the dashboard should show** (propose the language they write in, e.g. `zh-CN`) and write `Dashboard language: <code>` — or `Dashboard language: none` — into `10-reference/000_*_spec.md`. This is required, for custom specs too.
+- **Step 0** — Create the 9-zone folder structure (`00-current/`, `05-plans/`, `10-reference/`, `20-working/`, `50-drafts/`, `60-handoffs/`, `80-issues/`, `90-archive/`); write `AGENTS.md` with `python3 {SKILL_SCRIPTS_PATH}/agents-md.py write .` (fills real paths); copy `user-decision.md`, `memory.md`, spec template; run `scripts/generate-manifest.sh ./10-reference`. Per-item `20-working/<ITEM-ID>/` folders are created **lazily** at execution, not here. **Ask the user which language the dashboard should show** (propose the language they write in, e.g. `zh-CN`) and write `Dashboard language: <code>` — or `Dashboard language: none` — into `10-reference/000_*_spec.md`. This is required, for custom specs too.
 - **Step 1** — Analyze the user's requirements; clarify scope; for code projects resolve `PROJECT_ROOT`/`TARGET_ROOT`/`REPO_PROFILE_ROOT`; record reference paths in `10-reference/000_*_spec.md`.
 - **Step 1.5** — *Knowledge Front-Loading* (highly recommended): structured Q&A, one question at a time, update reference docs after each answer. Highest-ROI activity at project start.
 - **Step 2** — Decompose into items **only if the user explicitly asks** ("generate items", "decompose the project", "fill in the item list"). When you do decompose, apply the decomposition rules (see `references/decomposition-rules.md`). Each item must have ≥1 task in `tasks[]`; a trivial item gets one task mirroring its description.
@@ -212,7 +212,7 @@ Full procedure, delta semantics, validation failures, and acceptance criteria: s
 Run this workflow when CONTINUING an existing assignment (state files exist).
 
 **Steps (summary).**
-- **Step 1 — State Recovery** (CRITICAL): `tail -100 00-current/progress.log`; read `item-list.json`, `user-decision.md`, `memory.md`, spec file, and `10-reference/MANIFEST.md`. Do **NOT** load `item-list-archive.json` or progress-archive files speculatively. Run `./init.sh`. **Dashboard language**: if the spec has no `Dashboard language:` line (older projects), ask the user once, propose a default, and add the line only after the answer — the one agent-allowed spec write outside initialization (`none` means omit `DASHBOARD_LANGUAGE`). Full checklist: `references/execution-phase.md` § State Recovery.
+- **Step 1 — State Recovery** (CRITICAL): `tail -100 00-current/progress.log`; read `item-list.json`, `user-decision.md`, `memory.md`, spec file, and `10-reference/MANIFEST.md`. Do **NOT** load `item-list-archive.json` or progress-archive files speculatively. Run `python3 {SKILL_SCRIPTS_PATH}/agents-md.py check .`; if `AGENTS.md` is not current, show the `write . --dry-run` diff and refresh it only after the user agrees. Run `./init.sh`. **Dashboard language**: if the spec has no `Dashboard language:` line (older projects), ask the user once, propose a default, and add the line only after the answer — the one agent-allowed spec write outside initialization (`none` means omit `DASHBOARD_LANGUAGE`). Full checklist: `references/execution-phase.md` § State Recovery.
 - **Step 2 — Selection Gate** (read-only, then confirm before action):
   - If an item is already `in_progress` (overflow from prior session): do NOT run item selection. If a task is `in_progress`, propose resuming that task; else list remaining `pending` tasks for the **user to choose**.
   - Otherwise: identify the candidate item — honor `next_override` if set; else lowest-`priority` `pending` item; if all pending are `blocked` → report "nothing actionable" and stop.
@@ -515,7 +515,7 @@ This skill includes bundled resources to make implementation easier:
 
 ### assets/
 Template files for creating new task relay assignments:
-- `AGENTS.template.md` - Agent instructions copied to project root
+- `AGENTS.template.md` - Agent instructions written to the project root by `scripts/agents-md.py`. Line 1 is the version marker `<!-- task-relay-agents: N -->`; **bump N whenever you change the template** so old project copies show as outdated
 - `item-list.template.json` - Template for 00-current/item-list.json (active items with tasks[] + terminal summaries)
 - `item-list-archive.template.json` - Template for 00-current/item-list-archive.json (terminal item full records)
 - `progress.template.log` - Template for 00-current/progress.log
@@ -537,6 +537,7 @@ Executable utilities:
 - `rotate-progress-log.sh` - Rotates `00-current/progress.log` to `90-archive/progress-log/progress-archive-YYYY-MM-DD.log` when it grows past thresholds (default 1000 lines / 200 KB), seeds a fresh log with a continuity header, and regenerates `90-archive/progress-log/PROGRESS-ARCHIVE-MANIFEST.md`. Run with `--manifest-only` to rebuild the manifest only. **State-recovery rule: only ever read `00-current/progress.log`; NEVER auto-read `90-archive/`.**
 - `render-dashboard.sh` / `render-dashboard.py` - Render `00-current/dashboard.html` from `item-list.json` + `item-list-archive.json` (Python 3 standard library only; the shell wrapper reports a clear error and exits 127 when `python3` is missing).
 - `dashboard-i18n.py` / `dashboard_strings.py` - Maintain the dashboard translation cache (`list-missing`, `apply`, `prune`) and hold the shared list of translatable fields (D16).
+- `agents-md.py` - Write (`write <root> [--name] [--dry-run]`) or check (`check <root>`: exit 0 current, 1 outdated, 2 missing) a project's `AGENTS.md`. Fills `{PROJECT_NAME}` and the `{SKILL_*}` paths; backs up a replaced copy to `90-archive/AGENTS.md.bak-<timestamp>`.
 - `state-check.py` - Deterministic state checker (`<root> [--fix] [--language]`): metadata counts, blocker placement, item rollup, timestamps, and untranslated strings. Exits 1 on any problem; `--fix` repairs only metadata and the rollup. Run it by hand any time.
 - `install-state-writer.sh` - Install the state-writer subagent for Claude Code and Codex CLI (`--dry-run`, `--force`, `--claude-only`, `--codex-only`).
 
@@ -665,8 +666,8 @@ mv progress.log 00-current/
 # 3. Create user-decision.md
 cp {SKILL_ASSETS_PATH}/user-decision.template.md ./00-current/user-decision.md
 
-# 4. Copy AGENTS.md to project root
-cp {SKILL_ASSETS_PATH}/AGENTS.template.md ./AGENTS.md
+# 4. Write AGENTS.md to project root (real paths, version marker)
+python3 {SKILL_SCRIPTS_PATH}/agents-md.py write .
 
 # 5. Document migration in progress.log
 ```

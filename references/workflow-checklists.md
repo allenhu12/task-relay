@@ -15,7 +15,7 @@ This document provides detailed checklists for both initialization and execution
   - [ ] `60-handoffs/` - Handoff packages (session-to-session or external)
   - [ ] `80-issues/` - Backlog (on-request)
   - [ ] `90-archive/` - Obsolete files; `90-archive/progress-log/` for rotated logs
-- [ ] Copy AGENTS.template.md to project root as `AGENTS.md`
+- [ ] Write `AGENTS.md` with `python3 {SKILL_SCRIPTS_PATH}/agents-md.py write .` (real paths, no placeholders)
 - [ ] Copy user-decision.template.md to `00-current/user-decision.md`
 - [ ] Do **NOT** create any `20-working/<ITEM-ID>/` subfolders yet (lazy creation)
 
@@ -91,7 +91,7 @@ This document provides detailed checklists for both initialization and execution
 ## Execution Phase Checklist
 
 ### Start of Session — State Recovery
-- [ ] Read `AGENTS.md` for workflow instructions
+- [ ] Read `AGENTS.md` for workflow instructions; run `agents-md.py check .` — if not current, offer a refresh and wait for the user
 - [ ] Read `00-current/progress.log` (last 100 lines only)
   - [ ] Understand what was done previously
   - [ ] Note any blockers

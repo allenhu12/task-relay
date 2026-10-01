@@ -14,8 +14,14 @@ This file holds the full procedure, examples, and acceptance criteria.
 # 1. Confirm working directory
 pwd
 
-# 2. Read AGENTS.md for workflow instructions
+# 2. Read AGENTS.md for workflow instructions, then check it is current
 cat AGENTS.md
+python3 {SKILL_SCRIPTS_PATH}/agents-md.py check .
+# exit 0 = current. exit 1 = outdated (older template version or unresolved
+# {SKILL_*} placeholders). exit 2 = missing. When not current, tell the user,
+# show `agents-md.py write . --dry-run` (a diff), and run `write .` ONLY after
+# the user agrees — the copy may hold local edits. The old copy goes to
+# 90-archive/AGENTS.md.bak-<timestamp>. Never refresh it silently.
 
 # 3. Read recent progress log context from 00-current/
 tail -100 00-current/progress.log
@@ -68,7 +74,7 @@ npm test  # or equivalent
 
 ### State Recovery Checklist
 
-- Read AGENTS.md (understand workflow rules)
+- Read AGENTS.md (understand workflow rules); run `agents-md.py check .` and offer a refresh (after user OK) when it is not current
 - Read the last 100 lines of `00-current/progress.log`
 - Read `00-current/item-list.json` (active items with tasks[] + compact terminal summaries)
 - Do **NOT** read `00-current/item-list-archive.json` (only on demand)

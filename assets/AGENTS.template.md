@@ -1,3 +1,4 @@
+<!-- task-relay-agents: 2 -->
 # AI Agent Instructions — {PROJECT_NAME}
 
 This is a task-relay project. These rules apply in every session. The task-relay skill holds the full procedures.

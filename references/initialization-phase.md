@@ -22,9 +22,10 @@ mkdir -p 00-current 05-plans 10-reference 20-working 50-drafts 60-handoffs 80-is
 # Per-item 20-working/<ITEM-ID>/ folders are created LAZILY at execution,
 # not here. Do NOT pre-create them.
 
-# Copy AGENTS.md template to project root
-cp {SKILL_ASSETS_PATH}/AGENTS.template.md ./AGENTS.md
-# Edit AGENTS.md to replace {PROJECT_NAME} with actual project name
+# Write AGENTS.md from the template: fills in the project name and the real
+# skill paths, so no {SKILL_*} placeholder is left. Add --name "<name>" to
+# choose the title (default: the folder name).
+python3 {SKILL_SCRIPTS_PATH}/agents-md.py write .
 
 # Create empty user-decision.md (user-maintained file)
 cp {SKILL_ASSETS_PATH}/user-decision.template.md ./00-current/user-decision.md
