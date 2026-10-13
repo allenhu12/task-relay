@@ -1,0 +1,31 @@
+{
+  "items": [
+    {
+      "id": "ITEM-001",
+      "category": "setup",
+      "description": "Sandbox account and keys ready",
+      "priority": 1,
+      "validation_steps": [
+        "sandbox login works"
+      ],
+      "status": "completed",
+      "completed_at": "2026-09-25T18:00:00Z",
+      "notes": "",
+      "working_dir": "20-working/ITEM-001",
+      "files": [],
+      "tasks": [
+        {
+          "id": "TASK-001-01",
+          "description": "Request sandbox keys",
+          "status": "completed",
+          "validation_steps": [
+            "check passes"
+          ],
+          "completed_at": "2026-09-25T17:00:00Z",
+          "notes": "",
+          "rulebook": "20-working/ITEM-001/TASK-001-01-rulebook.md"
+        }
+      ]
+    }
+  ]
+}

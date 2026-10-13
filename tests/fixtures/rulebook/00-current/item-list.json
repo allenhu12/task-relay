@@ -1,0 +1,120 @@
+{
+  "assignment": {
+    "name": "gateway",
+    "description": "Payment gateway integration",
+    "created": "2026-09-20T09:00:00Z",
+    "last_updated": "2026-09-28T12:00:00Z"
+  },
+  "next_override": null,
+  "items": [
+    {
+      "id": "ITEM-002",
+      "category": "implementation",
+      "description": "Payment gateway works end to end",
+      "priority": 1,
+      "validation_steps": [
+        "one sandbox order succeeds"
+      ],
+      "status": "in_progress",
+      "completed_at": null,
+      "notes": "",
+      "working_dir": "20-working/ITEM-002",
+      "files": [],
+      "rulebook": "20-working/ITEM-002/ITEM-002-rulebook.md",
+      "context": [
+        "10-reference/012_gateway-api.md"
+      ],
+      "tasks": [
+        {
+          "id": "TASK-002-01",
+          "description": "Define the payment DTO",
+          "status": "completed",
+          "validation_steps": [
+            "check passes"
+          ],
+          "completed_at": "2026-09-26T10:00:00Z",
+          "notes": ""
+        },
+        {
+          "id": "TASK-002-02",
+          "description": "Implement request signing",
+          "status": "in_progress",
+          "validation_steps": [
+            "check passes"
+          ],
+          "completed_at": null,
+          "notes": "",
+          "rulebook": "20-working/ITEM-002/TASK-002-02 rule&book.md",
+          "context": [
+            "05-plans/004_signing-design.md"
+          ]
+        },
+        {
+          "id": "TASK-002-03",
+          "description": "Sandbox integration test",
+          "status": "blocked",
+          "validation_steps": [
+            "check passes"
+          ],
+          "completed_at": null,
+          "notes": "",
+          "rulebook": "20-working/ITEM-002/TASK-002-03-rulebook.md",
+          "blocker": {
+            "type": "needs_user",
+            "summary": "Rulebook check failed: Deliverables",
+            "question": "docs/signing.md is missing. Keep working, block, update the rulebook, or accept?",
+            "since": "2026-09-27T09:00:00Z"
+          }
+        }
+      ]
+    },
+    {
+      "id": "ITEM-003",
+      "category": "docs",
+      "description": "Operator guide for the gateway",
+      "priority": 2,
+      "validation_steps": [
+        "guide reviewed"
+      ],
+      "status": "pending",
+      "completed_at": null,
+      "notes": "",
+      "working_dir": null,
+      "files": [],
+      "context": [
+        "10-reference/012_gateway-api.md"
+      ],
+      "tasks": [
+        {
+          "id": "TASK-003-01",
+          "description": "Write the operator guide",
+          "status": "pending",
+          "validation_steps": [
+            "check passes"
+          ],
+          "completed_at": null,
+          "notes": "",
+          "context": [
+            "05-plans/005_outline.md"
+          ]
+        }
+      ]
+    }
+  ],
+  "terminal_summary": [
+    {
+      "id": "ITEM-001",
+      "description": "Sandbox account and keys ready",
+      "status": "completed",
+      "completed_at": "2026-09-25T18:00:00Z"
+    }
+  ],
+  "metadata": {
+    "total_items": 3,
+    "completed": 1,
+    "in_progress": 1,
+    "blocked": 0,
+    "pending": 1,
+    "cancelled": 0
+  }
+}

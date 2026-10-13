@@ -12,6 +12,7 @@ from __future__ import annotations
 import ast
 import importlib
 import json
+import re
 import os
 import shutil
 import subprocess
@@ -28,7 +29,7 @@ WRAPPER = SCRIPTS_DIR / "render-dashboard.sh"
 TEMPLATE = REPO_ROOT / "assets" / "dashboard.template.html"
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
-FIXTURE_NAMES = ("empty", "mockup", "legacy", "long", "special")
+FIXTURE_NAMES = ("empty", "mockup", "legacy", "long", "special", "rulebook")
 MAX_DASHBOARD_BYTES = 200 * 1024
 
 sys.path.insert(0, str(SCRIPTS_DIR))
@@ -438,6 +439,54 @@ class DashboardTest(unittest.TestCase):
         # Sibling modules inside scripts/ are part of this repo, not packages.
         allowed |= {path.stem for path in SCRIPTS_DIR.glob("*.py")}
         self.assertTrue(names.issubset(allowed), msg=f"non-stdlib imports: {names - allowed}")
+
+    # ---- Rulebook badge (G19) -------------------------------------------
+    def rulebook_links(self, text: str) -> list[str]:
+        return re.findall(r'<a class="rb" href="([^"]*)"', text)
+
+    def test_rulebook_badges_link_every_rulebook_and_no_context(self):
+        text = self.dashboard_text("rulebook")
+        links = self.rulebook_links(text)
+        # ITEM-002 (summary), TASK-002-02, TASK-002-03 (row + needs-you card,
+        # which also repeats ITEM-002's), and archived TASK-001-01.
+        self.assertEqual(
+            sorted(links),
+            sorted([
+                "../20-working/ITEM-002/ITEM-002-rulebook.md",
+                "../20-working/ITEM-002/ITEM-002-rulebook.md",
+                "../20-working/ITEM-002/TASK-002-02%20rule%26book.md",
+                "../20-working/ITEM-002/TASK-002-03-rulebook.md",
+                "../20-working/ITEM-002/TASK-002-03-rulebook.md",
+                "../20-working/ITEM-001/TASK-001-01-rulebook.md",
+            ]),
+        )
+        self.assertIn(render_mod.LABELS["rulebook_badge"], text)
+        self.assertNotIn("005_outline.md", text)
+        self.assertNotIn("012_gateway-api.md", text)
+
+    def test_rulebook_badge_title_is_escaped(self):
+        text = self.dashboard_text("rulebook")
+        self.assertIn('title="20-working/ITEM-002/TASK-002-02 rule&amp;book.md"', text)
+        self.assertNotIn("rule&book", text)
+
+    def test_item_badge_stays_inside_the_description_cell(self):
+        text = self.dashboard_text("rulebook")
+        summary = re.search(r"<summary><span class=\"mono\">ITEM-002</span>(.*?)</summary>", text, re.S)
+        self.assertIsNotNone(summary)
+        # id cell, one description cell (holding the badge), chip, progress: 4 children.
+        self.assertTrue(summary.group(1).startswith("<span><span"), summary.group(1)[:80])
+        self.assertIn('class="rb"', summary.group(1).split('class="chip')[0])
+
+    def test_needs_you_card_links_item_and_task_rulebooks(self):
+        text = self.dashboard_text("rulebook")
+        card = text.split(render_mod.LABELS["section_needs_you"], 1)[1].split("</div></div>", 1)[0]
+        self.assertIn("../20-working/ITEM-002/ITEM-002-rulebook.md", card)
+        self.assertIn("../20-working/ITEM-002/TASK-002-03-rulebook.md", card)
+
+    def test_no_rulebook_means_no_badge_markup(self):
+        for fixture in ("empty", "mockup", "legacy", "long", "special"):
+            with self.subTest(fixture=fixture):
+                self.assertNotIn('class="rb"', self.dashboard_text(fixture))
 
     def test_labels_dict_covers_every_section(self):
         labels = render_mod.LABELS
