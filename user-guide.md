@@ -2,6 +2,8 @@
 
 A complete guide to using the Task Relay skill for managing complex, multi-session assignments with AI agents.
 
+> **What's new: rulebook and context files.** An item is now a milestone, and a task may span several sessions. A long task can link a **rulebook** (its objective, deliverables, acceptance, boundaries and stop point) and **context files** (files to read first), so a new session — even on another model — stays on course. See "Rulebooks and Context Files" below.
+
 > **What's new in v1.3.** Tasks-under-items, per-item workspaces, and deep-adapter removal:
 >
 > 1. **Tasks under items.** Every item now has `tasks[]` (≥1). Tasks are the checkpoint/resumability mechanism — they let sessions overflow gracefully without losing progress. Task IDs are `TASK-NNN-MM`; order is user-chosen, not sequential.
@@ -509,6 +511,41 @@ blocked/in-progress rollup — it never invents a timestamp or rewrites your tex
 python3 scripts/state-check.py .            # one line per problem, exit 1 if any
 python3 scripts/state-check.py . --fix      # repair mechanical fields, then re-check
 ```
+
+## Rulebooks and Context Files
+
+Items are milestones, and a task may take several sessions. Each handoff is a chance to drift:
+the next session, maybe on another model, starts with only the state files and a short note.
+Two optional links on an item or task keep it on course.
+
+| Link | What it is | When the agent uses it |
+|---|---|---|
+| `rulebook` (one file) | Objective, deliverables, acceptance, boundaries, stop point | Reads it when the task starts or resumes, and after compaction; checks every section before closing |
+| `context` (a list) | Files the work needs, e.g. a design doc or an API spec | Reads them when the task starts or resumes |
+
+A task also uses its item's links. So put shared files on the item and task-only files on the task.
+
+**You decide what is linked.** The agent only suggests:
+
+- "This task looks long. Draft a rulebook?" — at task start, and at every handoff of a task with no rulebook.
+- "The next session will need these 3 files. Pin them?" — at task start and at a handoff.
+
+You can also ask directly, at any time and for any item:
+
+```
+"Pin 05-plans/004_signing-design.md to TASK-003-02"
+"Link this rulebook to ITEM-005"
+"Unpin 10-reference/old-api.pdf from TASK-003-02"
+```
+
+**At closing**, the agent checks the rulebook. If a section fails, it stops and offers four
+choices: keep working, block the task, update the rulebook (you confirm the change), or
+accept the gap and close. It never picks alone.
+
+**On the dashboard**, a task or item with a rulebook shows a `📘 Rulebook` badge that links to the file.
+
+Rulebook files live at `20-working/<ITEM-ID>/<TASK-ID>-rulebook.md`. Draft one with a rulebook
+skill (for example `long-task-rulebook`) or by hand.
 
 ## Working Across Different AI Clients
 

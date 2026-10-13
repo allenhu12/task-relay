@@ -221,10 +221,10 @@ Run this workflow when CONTINUING an existing assignment (state files exist).
 - **Step 3 — Task Loop** (user-driven, Option B):
   - Create `20-working/<ITEM-ID>/` folder lazily on first transition to `in_progress` (if not yet present).
   - Present remaining `pending` tasks; **user selects** which task to run next. Agent does **not** auto-pick.
-  - Mark selected task `in_progress`; do the work; validate; mark `completed` / `blocked` / `cancelled`; **flush `item-list.json` immediately** by sending one update request to the state writer (see § State Writer). The subagent also re-renders `00-current/dashboard.html`.
+  - Mark selected task `in_progress`; **read the files in the writer's `READ FIRST:` reply** (the item's and task's `rulebook` / `context`, step 5a); do the work; validate; mark `completed` / `blocked` / `cancelled`; **flush `item-list.json` immediately** by sending one update request to the state writer (see § State Writer). The subagent also re-renders `00-current/dashboard.html`.
   - **STOP and ask again** — never auto-advance to the next task.
-  - If context fills before the item is done (overflow): record completed tasks in `item-list.json`; leave item `in_progress`; write handoff note to `progress.log`; end session. Next session resumes the `in_progress` task or user picks next.
-- **Step 4 — Validation** (CRITICAL): run every entry in `validation_steps`. ONLY mark `completed` if ALL pass; otherwise fix or mark `blocked`.
+  - If context fills before the item is done (overflow): if the task has no rulebook, ask "Draft a rulebook?" and suggest context pins from the files you used; record completed tasks in `item-list.json`; leave item `in_progress`; write handoff note to `progress.log`; end session. Next session resumes the `in_progress` task or user picks next.
+- **Step 4 — Validation** (CRITICAL): run every entry in `validation_steps`, then the rulebook check if a rulebook applies. ONLY mark `completed` if ALL pass; otherwise fix or mark `blocked`. A failed rulebook check offers four choices (keep working / block / update the rulebook / accept and close) — never pick alone.
 - **Step 5 — Item Completion / Termination**:
   - An item may be `completed` only when **every task is either `completed` or `cancelled`** AND item-level `validation_steps` all pass. Every `cancelled` task must carry a `notes` explanation.
   - For **cancelled items**: require user confirmation; cascade — set every non-`completed` task to `cancelled` with `notes` referencing the item cancellation.
@@ -295,7 +295,7 @@ translates — it only reads the cache (ADR 0001).
 **Who writes what (D12)**
 
 - The **subagent** writes `00-current/item-list.json`, `00-current/item-list-archive.json`, and appends to `00-current/progress.log`, then runs the render script so `00-current/dashboard.html` is regenerated. Every state write includes the render.
-- The **main agent** writes `20-working/<ITEM-ID>/log.md` and `memory.md` itself.
+- The **main agent** writes `20-working/<ITEM-ID>/log.md`, rulebook files (after the user's yes) and `memory.md` itself.
 - Nobody writes `00-current/user-decision.md`.
 
 **Blocked tasks must carry a `blocker` (D6, D7)**
@@ -320,11 +320,24 @@ Then the main agent:
 2. Reports which step failed, the exact error, and the fix (usually `bash {SKILL_SCRIPTS_PATH}/install-state-writer.sh`, then restart the CLI).
 3. Offers exactly three choices and waits for the user: ① retry the subagent after the fix; ② the main agent writes the state itself this time and runs the render script; ③ write nothing and end the session.
 
+## Rulebook and Context Files
+
+An item or task may link one **rulebook** (`rulebook`: objective, deliverables, acceptance, boundaries, stop) and a list of **context files** (`context`: files to read first). A task also uses its item's. They guard long tasks across handoffs, possibly to another model.
+
+- **Read first:** when a task starts or resumes, and after compaction (rulebook). The state writer's reply lists the files as `READ FIRST: <paths>`.
+- **Suggest, never decide:** the agent suggests a rulebook at task start (if long or risky) and at every handoff of a task without one, and suggests context pins; the user decides. On a yes, or on the user's request, send `set rulebook` / `set context` — for any item, active or not.
+- **Check before closing:** every rulebook section; on failure stop and offer four choices.
+- **Files:** `20-working/<ITEM-ID>/<TASK-ID>-rulebook.md` (or `<ITEM-ID>-rulebook.md`), `Type: rulebook`. task-relay knows the file format, not a specific skill; draft with any rulebook skill (search skills-mindmap) or by hand.
+- **Dashboard:** a `📘 Rulebook` badge with a link. Context files get no badge.
+
+Full procedure: `references/execution-phase.md` § Rulebook and context files and § Step 4.1.
+
 ## Tasks under Items
 
 **Model summary.**
 
 - Every item has `tasks[]` (≥1). A trivial item has a single task.
+- An item is a milestone (one or more outcomes); a task is a small goal that ends in a verifiable state and may span sessions. A session is the vehicle, not the size.
 - Tasks are the checkpoint/resumability mechanism. Normal case: work through an item's tasks until the item is done. Overflow case: completed tasks stay recorded; next session resumes.
 - Task IDs: `TASK-<item-number>-<task-number>` (e.g. `TASK-001-01`, `TASK-001-02`). Numbering is identity, not mandated run order.
 - **Status enum** (items and tasks share one set): `pending | in_progress | completed | blocked | cancelled`.
@@ -426,8 +439,9 @@ Full procedure, categorization rules, anti-patterns, and acceptance criteria: se
 
 🚫 **NEVER work on multiple items per session**
 - ONE item per session, no exceptions
-- Prevents context exhaustion
+- Keeps each session focused on one milestone (the rule is about focus, not size)
 - Ensures quality validation
+- Linking a `rulebook` / `context` to another item on the user's request is a state-only change and is allowed
 
 🚫 **NEVER auto-advance to the next task**
 - After each task completes (or is cancelled/blocked), STOP and ask the user which task to run next

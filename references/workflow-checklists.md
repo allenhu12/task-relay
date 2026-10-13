@@ -144,9 +144,12 @@ This document provides detailed checklists for both initialization and execution
 - [ ] **Ask user which task to run next** — do NOT auto-pick
 - [ ] Wait for user selection
 - [ ] Mark selected task `in_progress`; flush `item-list.json`
-- [ ] Perform the work for that task
+- [ ] Read every file in the writer's `READ FIRST:` reply (item + task `rulebook` / `context`); log `Read before work: <paths>`
+- [ ] Long or risky task with no rulebook? Ask "Draft a rulebook?" — never create one without a yes
+- [ ] Perform the work for that task (re-read the rulebook after compaction)
 - [ ] Stay scoped (resist scope creep; do not work on other items or tasks)
 - [ ] Run ALL task-level `validation_steps`
+- [ ] If a rulebook applies: check every section, log the result; on failure stop and offer the four choices
 - [ ] Mark task `completed` / `blocked` / `cancelled`; flush `item-list.json`
 - [ ] Append task result to `20-working/<ITEM-ID>/log.md`
 - [ ] Update `files[]` in item-list.json if new files were created
@@ -154,6 +157,7 @@ This document provides detailed checklists for both initialization and execution
 
 ### Overflow / Mid-Item Session End
 - [ ] If context fills before item is done:
+  - [ ] Task has no rulebook? Ask "Draft a rulebook?" Suggest context pins from the files you used
   - [ ] Ensure current task state is flushed (in_progress or completed in JSON)
   - [ ] Append handoff note to `00-current/progress.log`:
     - [ ] Item ID, which task is in_progress, which tasks remain
@@ -165,6 +169,7 @@ This document provides detailed checklists for both initialization and execution
 - [ ] Check: every task is `completed` or `cancelled`
 - [ ] Check: every `cancelled` task has a non-empty `notes` field
 - [ ] Check: every item-level `validation_steps` entry passes
+- [ ] Check: the item's `rulebook` (if any) passes every section
 - [ ] Only proceed if ALL checks pass; otherwise fix or mark blocked
 
 ### Whole-Item Cancellation (when user requests)
