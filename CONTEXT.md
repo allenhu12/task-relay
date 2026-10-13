@@ -9,19 +9,39 @@ client can pick up where the last session stopped.
 ### Work structure
 
 **Item**:
-A unit of work that one session can finish. An item carries its own tasks, its own status, and
-the validation that proves it is done.
+A milestone in the assignment. It can have several outcomes, and it holds one or more tasks plus
+the validation that proves the milestone is reached.
 _Avoid_: ticket, issue, job, story
 
 **Task**:
-A checkpoint inside an item. Tasks make an item resumable: each one ends in a state the next
-session can trust.
+A small goal inside an item that ends in a state anyone can verify. A task can take one session
+or several.
 _Avoid_: step, subtask, checklist entry
+
+**Session**:
+One agent run that moves an item or task forward. Compaction keeps the same session. A session
+never defines how big the work is.
+_Avoid_: chat, conversation, run
+
+**Handoff**:
+Ending a session so that a new session, maybe with a different model, can continue from the state
+files and the session narrative alone.
+_Avoid_: transfer, resume note
 
 **Terminal item**:
 An item that has finished — completed or cancelled — and will not be worked on again. Its full
 record is kept for history.
 _Avoid_: closed item, done item, archived item
+
+**Rulebook**:
+A file linked to an item or task that sets its objective, deliverables, acceptance, boundaries
+and stop point. The agent reads it before the work and checks it before closing.
+_Avoid_: guide, spec
+
+**Context file**:
+A file pinned to an item or task that the agent must read before working on it. It informs the
+work but is not checked at closing. A task also reads the context files of its item.
+_Avoid_: guide, attachment, reference
 
 ### State and views
 
