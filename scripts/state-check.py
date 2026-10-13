@@ -9,6 +9,11 @@ wrong, 0 when the state is clean. Warnings (for example a `rulebook` or
 `context` file that does not exist yet) print as `state-check: warning: ...`
 and do not change the exit code.
 
+`--read-first TASK-ID` runs no checks. It prints one line, `READ FIRST: <paths>`
+(or `READ FIRST: none`): the item's `rulebook` and `context`, then the task's,
+in that order, without duplicates. The state writer copies this line into its
+reply when a task goes `in_progress`.
+
 `--fix` repairs **only** mechanical fields — the `metadata` counts and the item
 blocked/in_progress rollup. It never invents a timestamp or any text, and never
 touches a definition field.
@@ -356,6 +361,35 @@ class Checker:
         return changed
 
 
+def read_first_paths(item: dict, task: dict) -> list[str]:
+    """Item rulebook + context, then task rulebook + context; order kept, no duplicates."""
+    paths: list[str] = []
+    for record in (item, task):
+        rulebook = record.get("rulebook")
+        candidates = [rulebook] if isinstance(rulebook, str) else []
+        candidates += [entry for entry in as_list(record.get("context")) if isinstance(entry, str)]
+        for entry in candidates:
+            if entry.strip() and entry not in paths:
+                paths.append(entry)
+    return paths
+
+
+def run_read_first(root: Path, task_id: str) -> int:
+    try:
+        item_list, _archive = ds.load_project_documents(root)
+    except ds.I18nError as exc:
+        print(f"state-check: json: {exc}", file=sys.stderr)
+        return 1
+    for item in [as_dict(entry) for entry in as_list(item_list.get("items"))]:
+        for task in item_tasks(item):
+            if as_text(task.get("id")) == task_id:
+                paths = read_first_paths(item, task)
+                print("READ FIRST: " + (", ".join(paths) if paths else "none"))
+                return 0
+    print(f"state-check: read-first: unknown active task {task_id!r}", file=sys.stderr)
+    return 1
+
+
 def run(root: Path, fix: bool, language: Optional[str]) -> int:
     try:
         item_list, archive = ds.load_project_documents(root)
@@ -408,7 +442,10 @@ def main(argv: Sequence[str]) -> int:
     parser.add_argument("root")
     parser.add_argument("--fix", action="store_true")
     parser.add_argument("--language", default=None)
+    parser.add_argument("--read-first", metavar="TASK_ID", default=None)
     args = parser.parse_args(list(argv[1:]))
+    if args.read_first:
+        return run_read_first(Path(args.root).expanduser(), args.read_first)
     return run(Path(args.root).expanduser(), args.fix, args.language)
 
 

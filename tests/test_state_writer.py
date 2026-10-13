@@ -84,6 +84,20 @@ class AgentDefinitionTest(unittest.TestCase):
         self.assertIn("blocker=none", body)
         self.assertIn("archive ITEM-001", body)
 
+    def test_body_defines_rulebook_and_context_ops(self):
+        body = contract_body()
+        self.assertIn("rulebook=20-working/ITEM-001/TASK-001-02-rulebook.md", body)
+        self.assertIn("rulebook=none", body)
+        self.assertIn('context=["10-reference/012_api.pdf", "05-plans/004_design.md"]', body)
+        self.assertIn("context=[]", body)
+        self.assertIn("never create, read or edit the files they point to", body)
+
+    def test_body_defines_the_read_first_reply(self):
+        body = contract_body()
+        self.assertIn("--read-first <TASK-ID>", body)
+        self.assertIn("STATE-WRITER OK <n> ops; dashboard rendered; READ FIRST: <paths>", body)
+        self.assertIn("state-check: warning:", body)
+
     def test_codex_definition_keys_and_pinned_model(self):
         data = tomllib.loads(CODEX_AGENT.read_text(encoding="utf-8"))
         self.assertEqual(set(data.keys()), ALLOWED_CODEX_KEYS)

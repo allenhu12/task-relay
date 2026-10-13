@@ -499,6 +499,50 @@ class RulebookContextPathTest(Base):
         self.assertEqual(self.warnings(result), [])
 
 
+class ReadFirstTest(Base):
+    """`--read-first TASK-ID`: item rulebook + context, then task's; no checks run."""
+
+    def read_first(self, root: Path, task_id: str) -> subprocess.CompletedProcess:
+        return self.check(root, "--read-first", task_id)
+
+    def test_lists_item_then_task_paths_without_duplicates(self):
+        root = self.minimal_project()
+        doc = self.load(root)
+        doc["items"][0]["rulebook"] = "20-working/ITEM-001/ITEM-001-rulebook.md"
+        doc["items"][0]["context"] = ["10-reference/a.md", "05-plans/b.md"]
+        doc["items"][0]["tasks"][0]["rulebook"] = "20-working/ITEM-001/TASK-001-01-rulebook.md"
+        doc["items"][0]["tasks"][0]["context"] = ["05-plans/b.md", "05-plans/c.md"]
+        self.write(root, doc)
+        result = self.read_first(root, "TASK-001-01")
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertEqual(
+            result.stdout.strip(),
+            "READ FIRST: 20-working/ITEM-001/ITEM-001-rulebook.md, 10-reference/a.md, "
+            "05-plans/b.md, 20-working/ITEM-001/TASK-001-01-rulebook.md, 05-plans/c.md",
+        )
+
+    def test_none_when_nothing_is_linked(self):
+        root = self.minimal_project()
+        result = self.read_first(root, "TASK-001-01")
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(result.stdout.strip(), "READ FIRST: none")
+
+    def test_unknown_task_is_an_error(self):
+        root = self.minimal_project()
+        result = self.read_first(root, "TASK-009-01")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("unknown active task", result.stderr)
+
+    def test_runs_no_checks(self):
+        root = self.minimal_project()
+        doc = self.load(root)
+        doc["metadata"]["total_items"] = 99
+        self.write(root, doc)
+        result = self.read_first(root, "TASK-001-01")
+        self.assertEqual(result.returncode, 0)
+        self.assertNotIn("metadata", result.stdout)
+
+
 class TranslationTest(Base):
     def test_language_flag_reports_missing_translations(self):
         root = self.project("english")
