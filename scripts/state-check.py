@@ -5,7 +5,9 @@ Usage:
     python3 scripts/state-check.py <project_root> [--fix] [--language zh-CN]
 
 Check-only by default: prints one line per problem and exits 1 when anything is
-wrong, 0 when the state is clean.
+wrong, 0 when the state is clean. Warnings (for example a `rulebook` or
+`context` file that does not exist yet) print as `state-check: warning: ...`
+and do not change the exit code.
 
 `--fix` repairs **only** mechanical fields — the `metadata` counts and the item
 blocked/in_progress rollup. It never invents a timestamp or any text, and never
@@ -138,16 +140,49 @@ def blocker_problems(task: dict, label: str) -> list[str]:
     return problems
 
 
+def path_problem(value: Any) -> Optional[str]:
+    """Why a rulebook/context path is not a safe project-relative path, else None."""
+    if not isinstance(value, str) or not value.strip():
+        return "must be a non-empty string"
+    text = value.replace("\\", "/")
+    if text.startswith(("/", "~")) or re.match(r"^[A-Za-z]:", text):
+        return f"must be relative to the project root: {value!r}"
+    if ".." in text.split("/"):
+        return f"must not contain '..': {value!r}"
+    return None
+
+
+def guide_paths(record: dict, label: str) -> tuple[list[tuple[str, str]], list[str]]:
+    """The (label, path) pairs of a record's rulebook/context, plus shape problems."""
+    paths: list[tuple[str, str]] = []
+    problems: list[str] = []
+    if "rulebook" in record and record["rulebook"] is not None:
+        paths.append((f"{label}.rulebook", record["rulebook"]))
+    if "context" in record:
+        context = record["context"]
+        if not isinstance(context, list):
+            problems.append(f"paths: {label}.context must be a list of paths")
+        else:
+            paths.extend(
+                (f"{label}.context[{index}]", entry) for index, entry in enumerate(context)
+            )
+    return paths, problems
+
+
 class Checker:
     def __init__(self, root: Path, language: Optional[str]) -> None:
         self.root = root
         self.language = language
         self.problems: list[str] = []
+        self.warnings: list[str] = []
         self.fixes: list[str] = []
 
     # -- helpers ---------------------------------------------------------
     def problem(self, message: str) -> None:
         self.problems.append(message)
+
+    def warning(self, message: str) -> None:
+        self.warnings.append(message)
 
     def fix(self, message: str) -> None:
         self.fixes.append(message)
@@ -177,6 +212,21 @@ class Checker:
                     )
                 if status == "blocked":
                     self.problems.extend(blocker_problems(task, label))
+
+    def check_paths(self, items: Sequence[dict]) -> None:
+        """rulebook/context on active items and tasks: bad path = problem, missing file = warning."""
+        for item in items:
+            records = [(item, as_text(item.get("id")) or "item")]
+            records += [(task, as_text(task.get("id")) or "task") for task in item_tasks(item)]
+            for record, label in records:
+                paths, problems = guide_paths(record, label)
+                self.problems.extend(problems)
+                for path_label, value in paths:
+                    reason = path_problem(value)
+                    if reason:
+                        self.problem(f"paths: {path_label} {reason}")
+                    elif not (ds.current_dir(self.root).parent / value).exists():
+                        self.warning(f"paths: {path_label} file not found: {value}")
 
     def check_rollup(self, items: Sequence[dict]) -> None:
         for item in items:
@@ -330,6 +380,7 @@ def run(root: Path, fix: bool, language: Optional[str]) -> int:
     items = [as_dict(entry) for entry in as_list(item_list.get("items"))]
     checker.check_metadata(item_list)
     checker.check_blockers(items)
+    checker.check_paths(items)
     checker.check_rollup(items)
     checker.check_timestamps(item_list, archive)
     try:
@@ -341,6 +392,8 @@ def run(root: Path, fix: bool, language: Optional[str]) -> int:
         print(f"state-check: fixed {message}")
     for message in checker.problems:
         print(f"state-check: {message}")
+    for message in checker.warnings:
+        print(f"state-check: warning: {message}")
     if checker.problems:
         return 1
     print("state-check: OK")

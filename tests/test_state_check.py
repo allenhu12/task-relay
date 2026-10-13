@@ -49,7 +49,13 @@ class Base(unittest.TestCase):
             for line in result.stdout.splitlines()
             if line.startswith("state-check: ")
             and not line.startswith("state-check: fixed")
+            and not line.startswith("state-check: warning:")
             and line.strip() != "state-check: OK"
+        ]
+
+    def warnings(self, result: subprocess.CompletedProcess) -> list[str]:
+        return [
+            line for line in result.stdout.splitlines() if line.startswith("state-check: warning:")
         ]
 
     def fixes(self, result: subprocess.CompletedProcess) -> list[str]:
@@ -414,6 +420,83 @@ class BlockerTest(Base):
         self.write(root, doc)
         result = self.check(root)
         self.assertIn("blocker.waiting_on is required", " ".join(self.problems(result)))
+
+
+class RulebookContextPathTest(Base):
+    """`rulebook` / `context` on items and tasks: bad path = problem, missing file = warning."""
+
+    def with_paths(self, item: dict, task: dict, files: tuple[str, ...] = ()) -> Path:
+        root = self.minimal_project()
+        doc = self.load(root)
+        doc["items"][0].update(item)
+        doc["items"][0]["tasks"][0].update(task)
+        self.write(root, doc)
+        for name in files:
+            target = root / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("x", encoding="utf-8")
+        return root
+
+    def test_existing_files_pass_without_warnings(self):
+        root = self.with_paths(
+            {"rulebook": "20-working/ITEM-001/ITEM-001-rulebook.md", "context": ["10-reference/a.md"]},
+            {"rulebook": "20-working/ITEM-001/TASK-001-01-rulebook.md", "context": ["05-plans/b.md"]},
+            files=(
+                "20-working/ITEM-001/ITEM-001-rulebook.md",
+                "10-reference/a.md",
+                "20-working/ITEM-001/TASK-001-01-rulebook.md",
+                "05-plans/b.md",
+            ),
+        )
+        result = self.check(root)
+        self.assertEqual(result.returncode, 0, msg=result.stdout)
+        self.assertEqual(self.warnings(result), [])
+
+    def test_absent_and_null_fields_pass(self):
+        root = self.with_paths({"rulebook": None, "context": []}, {"rulebook": None})
+        result = self.check(root)
+        self.assertEqual(result.returncode, 0, msg=result.stdout)
+        self.assertEqual(self.warnings(result), [])
+
+    def test_missing_file_is_a_warning_only(self):
+        root = self.with_paths({}, {"rulebook": "20-working/ITEM-001/TASK-001-01-rulebook.md"})
+        result = self.check(root)
+        self.assertEqual(result.returncode, 0, msg=result.stdout)
+        self.assertEqual(self.problems(result), [])
+        self.assertIn("TASK-001-01.rulebook file not found", " ".join(self.warnings(result)))
+        self.assertIn("state-check: OK", result.stdout)
+
+    def test_absolute_path_is_a_problem(self):
+        root = self.with_paths({"context": ["/etc/passwd"]}, {"rulebook": "~/rules.md"})
+        result = self.check(root)
+        self.assertEqual(result.returncode, 1)
+        joined = " ".join(self.problems(result))
+        self.assertIn("ITEM-001.context[0] must be relative", joined)
+        self.assertIn("TASK-001-01.rulebook must be relative", joined)
+
+    def test_parent_segment_is_a_problem(self):
+        root = self.with_paths({}, {"context": ["05-plans/../../secret.md"]})
+        result = self.check(root)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("must not contain '..'", " ".join(self.problems(result)))
+
+    def test_wrong_shapes_are_problems(self):
+        root = self.with_paths({"context": "10-reference/a.md"}, {"rulebook": "", "context": [3]})
+        result = self.check(root)
+        self.assertEqual(result.returncode, 1)
+        joined = " ".join(self.problems(result))
+        self.assertIn("ITEM-001.context must be a list", joined)
+        self.assertIn("TASK-001-01.rulebook must be a non-empty string", joined)
+        self.assertIn("TASK-001-01.context[0] must be a non-empty string", joined)
+
+    def test_paths_resolve_from_project_root_when_given_00_current(self):
+        root = self.with_paths(
+            {}, {"rulebook": "20-working/ITEM-001/TASK-001-01-rulebook.md"},
+            files=("20-working/ITEM-001/TASK-001-01-rulebook.md",),
+        )
+        result = self.check(root / "00-current")
+        self.assertEqual(result.returncode, 0, msg=result.stdout)
+        self.assertEqual(self.warnings(result), [])
 
 
 class TranslationTest(Base):
