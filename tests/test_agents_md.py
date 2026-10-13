@@ -45,6 +45,18 @@ class AgentsMdTest(unittest.TestCase):
             r"^<!-- task-relay-agents: \d+ -->$",
         )
 
+    def test_template_has_rulebook_and_context_rules(self):
+        text = TEMPLATE.read_text(encoding="utf-8")
+        self.assertIn("## Rulebook and context files", text)
+        self.assertIn("READ FIRST:", text)
+        self.assertIn("Check before closing.", text)
+        self.assertIn("session-log | rulebook", text)
+        self.assertIn("<TASK-ID>-rulebook.md", text)
+
+    def test_template_does_not_name_a_rulebook_skill(self):
+        # task-relay knows the rulebook file format, never a specific skill (G2, G21).
+        self.assertNotIn("long-task-rulebook", TEMPLATE.read_text(encoding="utf-8"))
+
     def test_check_missing(self):
         result = self.run_script("check", str(self.root))
         self.assertEqual(result.returncode, 2)
