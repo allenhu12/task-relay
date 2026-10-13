@@ -133,7 +133,7 @@ items per the decomposition rules below.
 **Decomposition Rules** (full reference + examples: `references/decomposition-rules.md`):
 
 1. **One milestone per item.** An item may have several outcomes, but they serve one milestone you can name in one short sentence. Split unrelated goals.
-2. **Functionality and tests are separate items.** Never mix code change and test-writing in the same item.
+2. **Functionality and tests are separate tasks.** Inside an item, code and tests are different tasks; the item's `validation_steps` include the tests. A broad test suite may be its own item.
 3. **Ordering guarantees compilability.** At the end of each item, the project must compile and pass existing tests.
 4. **Every item cites why it comes here.** Reference KB entries, source files, or prior items in your rationale.
 5. **Every item has a clear finish line.** Size an item by its outcome, not by time; it may take one session or many. Split it when its `validation_steps` cannot show the milestone is reached.

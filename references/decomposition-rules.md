@@ -19,14 +19,21 @@ for two unrelated goals, split the item.
 ✅ "Password reset works end to end: email template, token endpoint, reset page."
 ❌ "Password reset works, and the admin dashboard gets a new layout."
 
-### 2. Functionality and tests are separate items
+### 2. Functionality and tests are separate tasks
 
-Never mix code change and test-writing in the same item. Split test items
-by category (e.g. `TEST_CATEGORY` or feature area).
+Inside an item, write code and tests in different tasks, so each one is a
+checkpoint. The item's `validation_steps` include the tests, so the item
+closes with real proof. A broad test effort that serves several milestones
+(for example a regression suite) may still be its own item.
 
-✅ ITEM-007: Implement JWT refresh endpoint.
-   ITEM-008: Test JWT refresh endpoint (happy path + 3 error cases).
-❌ ITEM-007: Implement JWT refresh endpoint and write tests for it.
+✅ ITEM-007: JWT refresh works end to end.
+   TASK-007-01: Implement the refresh endpoint.
+   TASK-007-02: Test the endpoint (happy path + 3 error cases).
+   Item validation: all refresh-endpoint tests pass.
+❌ ITEM-007: Implement the refresh endpoint. ITEM-008: Test it.
+   (ITEM-007 cannot prove its milestone.)
+❌ TASK-007-01: Implement the refresh endpoint and write its tests.
+   (No checkpoint between code and tests.)
 
 ### 3. Ordering guarantees compilability
 

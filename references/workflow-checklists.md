@@ -38,7 +38,7 @@ This document provides detailed checklists for both initialization and execution
 - [ ] Break down assignment into discrete items
 - [ ] Apply decomposition rules (six rules — see `references/decomposition-rules.md`):
   - [ ] One milestone per item
-  - [ ] Functionality and tests are separate items
+  - [ ] Functionality and tests are separate tasks
   - [ ] Ordering guarantees compilability
   - [ ] Every item cites why it comes here
   - [ ] Every item has a clear finish line
