@@ -38,7 +38,7 @@ Read `AGENTS.md`, `00-current/item-list.json`, `user-decision.md`, `memory.md` (
 
 ## Items and tasks
 
-- Project = many items. Item = one session's work. Tasks = checkpoints inside an item; every item has ≥1 task.
+- Project = many items. Item = a milestone (one or more outcomes). Task = a small goal inside an item that ends in a verifiable state; every item has ≥1 task. A session is the vehicle, not the size: an item or task may span several sessions.
 - Task IDs: `TASK-<item>-<task>` (e.g. `TASK-001-01`). The number is identity, not run order.
 - Status (items and tasks): `pending | in_progress | completed | blocked | cancelled`. `blocked` is not terminal — the user can pick another task. `cancelled` is terminal and needs `notes`.
 - **Overflow** (context fills mid-item): leave the item and the current task `in_progress`, write a handoff note in `progress.log` naming the task to resume. The next session resumes it, or the user picks another pending task.

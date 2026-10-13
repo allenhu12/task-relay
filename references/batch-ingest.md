@@ -51,9 +51,10 @@ alert the user.
    in the same batch; substitute the assigned IDs once known.
 6. Append to the `items` array.
 
-**Session-size sanity note:** if any item's description suggests work that
-would take more than one session (e.g. "Implement and test the entire auth
-module"), flag it to the user with a suggestion to split before ingesting.
+**Milestone sanity note:** if any item's description joins unrelated goals
+(e.g. "Implement password reset and redesign the billing page"), flag it to
+the user with a suggestion to split before ingesting. Length alone is not a
+reason to split.
 
 ### 3. Update metadata counts
 

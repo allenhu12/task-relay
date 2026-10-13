@@ -37,18 +37,18 @@ This document provides detailed checklists for both initialization and execution
 - [ ] Only decompose if the user explicitly asks ("generate items", "decompose", etc.)
 - [ ] Break down assignment into discrete items
 - [ ] Apply decomposition rules (six rules — see `references/decomposition-rules.md`):
-  - [ ] One idea per item
+  - [ ] One milestone per item
   - [ ] Functionality and tests are separate items
   - [ ] Ordering guarantees compilability
   - [ ] Every item cites why it comes here
-  - [ ] Every item is session-sized (~one session)
+  - [ ] Every item has a clear finish line
   - [ ] Every item has ≥1 task in `tasks[]`
 - [ ] Apply appropriate granularity:
   - [ ] Large project: 30–80 items
   - [ ] Medium project: 10–30 items
   - [ ] Small task: 3–10 items
 - [ ] For each item, ensure:
-  - [ ] Independently completable in one session
+  - [ ] Its `validation_steps` can prove the milestone is reached
   - [ ] Has ≥1 item-level `validation_steps`
   - [ ] Description starts with action verb
   - [ ] Has `tasks[]` with ≥1 task; each task has `validation_steps`

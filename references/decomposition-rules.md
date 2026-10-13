@@ -10,13 +10,14 @@ become unreliable.
 
 ## The rules
 
-### 1. One idea per item
+### 1. One milestone per item
 
-A single feature, refactor, or test category. If you can't summarize the
-item in one short sentence, split it.
+An item is a milestone. It may have several outcomes, but they all serve one
+milestone that you can name in one short sentence. If you need two sentences
+for two unrelated goals, split the item.
 
-✅ "Implement password reset email template."
-❌ "Implement password reset and validate it across the auth module."
+✅ "Password reset works end to end: email template, token endpoint, reset page."
+❌ "Password reset works, and the admin dashboard gets a new layout."
 
 ### 2. Functionality and tests are separate items
 
@@ -42,29 +43,28 @@ The item's rationale must reference KB entries, source files, or prior items
     `users.refresh_token` column this endpoint reads."
 ❌ "Seems like the next logical step."
 
-### 5. Every item is session-sized
+### 5. Every item has a clear finish line
 
-An item must be completable in roughly one session (~30–90 minutes). If an
-item would take more, split it into smaller items. **This rule replaces the
-old `complexity: complex` / deep-task escape hatch.** Good decomposition is
-the only defense against oversized items.
+Size an item by its outcome, not by time. A session is the vehicle for the
+work, not its unit of size: an item may take one session or many. Tasks and
+handoffs carry the work across sessions.
 
-Rule of thumb:
-- **Fits one session** — single file or two; obvious validation; no design phase needed.
-- **Needs splitting** — touches ≥3 files, or needs a written plan, or has subtle
-  invariants the executor must reason about. Split into 2–3 items instead.
+Split an item when:
+- it holds two milestones (rule 1), or
+- its `validation_steps` cannot show that the milestone is reached.
 
 ### 6. Every item has ≥1 task
 
 A trivial item is an item with a single task (mirroring its description).
-Larger items get 2–5 tasks in `tasks[]`. Tasks are the checkpoint and
-resumability mechanism — they let a session overflow gracefully if context
-fills before the item is done.
+Larger items get 2–5 tasks in `tasks[]`. Tasks are the checkpoints: each one
+ends in a state that the next session can verify and trust.
 
 **Task sizing guidance**:
-- Each task should be a concrete, independently validatable sub-step (~10–30 minutes).
+- Each task is a small goal that ends in a verifiable state.
+- A task may take one session or several. Session length does not limit task size.
+- Split a task when it holds two goals, not when it is long.
+- A long task (one expected to cross a handoff) should have a rulebook that states its objective, deliverables, acceptance, boundaries and stop point.
 - Tasks within an item may be worked in any order (user-chosen); do not encode mandatory sequencing into the numbering.
-- If a task would still take more than one session, it is too large — split the item.
 
 ## Item Granularity (advisory)
 

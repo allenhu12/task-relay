@@ -132,11 +132,11 @@ items per the decomposition rules below.
 
 **Decomposition Rules** (full reference + examples: `references/decomposition-rules.md`):
 
-1. **One idea per item.** A single feature, refactor, or test category. If you can't summarize the item in one short sentence, split it.
+1. **One milestone per item.** An item may have several outcomes, but they serve one milestone you can name in one short sentence. Split unrelated goals.
 2. **Functionality and tests are separate items.** Never mix code change and test-writing in the same item.
 3. **Ordering guarantees compilability.** At the end of each item, the project must compile and pass existing tests.
 4. **Every item cites why it comes here.** Reference KB entries, source files, or prior items in your rationale.
-5. **Every item is session-sized.** An item must be completable in roughly one session. If it would take more, split it into smaller items.
+5. **Every item has a clear finish line.** Size an item by its outcome, not by time; it may take one session or many. Split it when its `validation_steps` cannot show the milestone is reached.
 6. **Every item has ≥1 task.** A trivial item is an item with a single task. Decompose larger items into 2–5 tasks in `tasks[]`.
 
 **Granularity** (advisory):
