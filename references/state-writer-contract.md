@@ -10,13 +10,14 @@ Created: 2026-09-28
 Routed from `SKILL.md` § State Writer. This file is the **single source of truth** for the
 `task-relay-state-writer` subagent (D2, D10, D11, D12).
 
-The instruction body below is embedded **verbatim** in both shipped agent definitions:
+The instruction body below is embedded **verbatim** in all shipped agent definitions:
 
 - `assets/agents/claude/task-relay-state-writer.md` (Claude Code, `model: haiku`)
 - `assets/agents/codex/task-relay-state-writer.toml` (Codex CLI, `model = "gpt-6-luna"`)
+- `assets/agents/cursor/task-relay-state-writer.md` (Cursor Agent, `model: inherit`)
 
-`tests/test_state_writer.py` asserts that the three copies stay identical. Change the text
-here, then copy it into both agent files.
+`tests/test_state_writer.py` asserts that the four copies stay identical. Change the text
+here, then copy it into all agent files.
 
 ## Instruction body
 
@@ -125,13 +126,26 @@ Use one of these step names: request, ops, item-list, archive, progress, checks,
 
 ## Install notes
 
-Install both definitions once per machine with `scripts/install-state-writer.sh`
-(`--dry-run`, `--force`, `--claude-only`, `--codex-only`).
+For a new Task Relay installation, use the unified root-level installer. It installs the skill
+and the state writer together:
+
+```bash
+bash install.sh --cursor
+bash install.sh --claude
+bash install.sh --codex
+```
+
+Use `scripts/install-state-writer.sh` only when the skill is already installed and the state
+writer needs a separate repair or update.
+
+Install all definitions once per machine with `scripts/install-state-writer.sh`
+(`--dry-run`, `--force`, `--claude-only`, `--codex-only`, `--cursor-only`).
 
 | CLI | Installed path | Model |
 |---|---|---|
 | Claude Code | `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/agents/task-relay-state-writer.md` | `haiku` |
 | Codex CLI | `${CODEX_HOME:-$HOME/.codex}/agents/task-relay-state-writer.toml` | `gpt-6-luna` (`model_reasoning_effort = "medium"`) |
+| Cursor Agent | `${CURSOR_CONFIG_DIR:-$HOME/.cursor}/agents/task-relay-state-writer.md` | `inherit` |
 
 ### Codex: the `agent_type` question (TASK-001-04 open point)
 
@@ -174,3 +188,11 @@ Claude Code subagents are Markdown files with YAML frontmatter; the body is the 
 `~/.claude/agents/` is user-level and applies to every project. `model: haiku` is a supported
 alias. **[documented]** Claude delegates through the Agent/Task tool, which reports a spawn
 error when the named subagent is missing. **[documented]**
+
+### Cursor Agent
+
+Cursor custom subagents are Markdown files with YAML frontmatter. User-level definitions live
+in `~/.cursor/agents/` and apply to all projects. Cursor exposes them through the Task tool and
+supports explicit `/name` invocation. `model: inherit` uses the parent agent's model and avoids
+pinning a model that a plan or team policy might not allow. `readonly: false` is required because
+the state writer edits project files. **[documented]**

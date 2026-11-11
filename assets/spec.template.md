@@ -5,8 +5,8 @@ Author: {AUTHOR}
 Created: {YYYY-MM-DD}
 ---
 
-# Source Code Reference on local workstation
-<!-- All paths are on the local workstation's local storage -->
+# Source Code Reference
+<!-- Replace every example with values for the current project. -->
 
 Set these values during task-relay initialization. Do not leave
 `{PROJECT_ROOT}` unresolved in a live project spec, and never leave the
@@ -21,11 +21,11 @@ Set these values during task-relay initialization. Do not leave
        translation (D16); `none` turns it off. The agent may edit this one line
        later only after asking the user. -->
 - Other sibling checkouts can use the same repo map, for example `/path/to/workspace/example-build-tools`.
-- Controller: `{PROJECT_ROOT}/src/controller`
-- example-service daemon: `{PROJECT_ROOT}/src/apps/example-service`
-- Librsm: `{PROJECT_ROOT}/src/libs/example-lib`
-- Kernel / network stack: `{PROJECT_ROOT}/opensource/linux/kernels/linux-5.4_12_5`
-- Driver: `{PROJECT_ROOT}/src/platform_dp/linux/driver/vendor_example_11be_12_5`
+- Main service: `{PROJECT_ROOT}/src/service`
+- Command-line application: `{PROJECT_ROOT}/src/cli`
+- Shared library: `{PROJECT_ROOT}/src/lib`
+- Integration tests: `{PROJECT_ROOT}/tests/integration`
+- Build configuration: `{PROJECT_ROOT}/build`
 
 ## Multi-Repo Manifest Reference
 
@@ -52,15 +52,15 @@ Usage:
 |---|---|---|---|---|
 | `{repo_name}` | `{checkout_path}` | `{PROJECT_ROOT}/{checkout_path}` | `{upstream_branch}` | `{pinned_revision}` |
 
-# Compiling Server
-Code is synced from local workstation to a remote Ubuntu 20.04 server and compiled inside a Docker container.
+# Build Server
+Code is synced from the local workstation to a remote Linux server and built inside a container.
 
 **Rule: whenever source files are modified, always provide a single `rsync` command that syncs exactly those files (file-level granularity, not directory-level).**
 
 - Host: `user@build-host`
 - TARGET_ROOT: `{TARGET_ROOT}`
 - Example TARGET_ROOT: `/home/user/workspace/example-project`
-- Compile root: `{TARGET_ROOT}/opensource/build-system-23-05`
+- Build root: `{TARGET_ROOT}/build`
 
 rsync template:
 ```bash
@@ -73,19 +73,16 @@ rsync -az --partial --info=progress2 \
     "user@build-host:$TARGET_ROOT/$CHANGED_FILE"
 ```
 
-# local document reference
+# Local document reference
 ## High Level Design
-- `~/Document/HLD.md`
-## Protocol Spec reference
-- `~/Document/Protocol.pdf`
+- `~/Documents/architecture.md`
+## Protocol specification
+- `~/Documents/protocol.pdf`
 
-# web document reference
-### Example Controller, Example Product, and Companion Product MR branches and release info
-<INTERNAL_DOCUMENTATION_URL>
+# Web document reference
+### Product release matrix
+`<INTERNAL_RELEASE_MATRIX_URL>`
 
-Summary: This Confluence page is the overall release matrix for Example Controller, Example Product, and Blue releases, mapping each version to its controller branch, AP branch, compatible release, supported AP models, and release notes. For LLM agents, use it to identify the correct branch and AP-family context before interpreting build, firmware, or test-environment details.
-
-### Example Product and Example Controller MR branches and release info
-<INTERNAL_DOCUMENTATION_URL>
-
-Summary: This is the same Confluence page ID as the overall release-info page, with detailed Example Controller and Example Product release histories including GA, MR, refresh, patch, build number, and image/symbol references. For this project, the key current context is the Example Product 200.19 line, including 200.19.7.11 and 200.19.7.112 branch alignment.
+Summary: This internal page maps product versions to source branches, compatible components,
+build identifiers, and release notes. Use it to select the correct branch and component context
+before interpreting build or test-environment details.

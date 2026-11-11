@@ -60,12 +60,62 @@ During initialization, the agent creates `10-reference/000_YYYY-MM-DD_spec.md`. 
 
 ### Required
 - An AI agent (Claude Code, ChatGPT, Gemini, or any LLM client)
-- The `task-relay` skill installed (if using Claude Code)
+- The `task-relay` skill installed for your client
 - A text editor to view the state files
 
 ### Optional but Recommended
 - Git for version control of state files
 - A project directory to keep everything organized
+
+## Installation
+
+Task Relay has two runtime parts: the skill and the `task-relay-state-writer` subagent. Use the
+unified installer so both parts are installed together.
+
+Run one command from the downloaded or cloned `task-relay` folder:
+
+```bash
+bash install.sh --cursor   # Cursor Agent
+bash install.sh --claude   # Claude Code
+bash install.sh --codex    # Codex CLI
+```
+
+Choose exactly one client per command. The installer writes the skill and subagent to these
+user-level locations:
+
+| Client | Skill | State writer |
+|---|---|---|
+| Cursor Agent | `~/.cursor/skills/task-relay/` | `~/.cursor/agents/task-relay-state-writer.md` |
+| Claude Code | `~/.claude/skills/task-relay/` | `~/.claude/agents/task-relay-state-writer.md` |
+| Codex CLI | `${CODEX_HOME:-$HOME/.codex}/skills/task-relay/` | `${CODEX_HOME:-$HOME/.codex}/agents/task-relay-state-writer.toml` |
+
+Preview the operation before it writes files:
+
+```bash
+bash install.sh --cursor --dry-run
+```
+
+The installer does not overwrite a different existing file. Review the conflict first. Use
+`--force` only when you want to replace installed Task Relay files:
+
+```bash
+bash install.sh --cursor --force
+```
+
+Run the same command again to update an installation. Restart the client if the new subagent is
+not visible in the current session.
+
+### Check before publishing
+
+Run the repository privacy check before you publish or package Task Relay:
+
+```bash
+bash scripts/check-sensitive-data.sh
+```
+
+The check scans the current worktree for personal absolute paths, known internal identifiers,
+private-network URLs, private-key headers, and common token formats. It does not rewrite Git
+history. Review and clean the current worktree first, then handle historical commits separately.
 
 ## Quick Start: Your First Assignment
 
@@ -481,8 +531,8 @@ existed, the agent asks you once and adds the line for you.
 If you would rather not install anything, Safari's built-in translation works on the page too,
 because the dashboard is plain static HTML.
 
-**Install the state-writer subagent** (once per machine). It is the lightweight model that
-applies state updates and re-renders the page:
+The unified installer in the Installation section installs the state writer with the skill.
+Use the lower-level installer only to repair or reinstall the state writer by itself:
 
 ```bash
 bash scripts/install-state-writer.sh            # run inside the task-relay skill folder
@@ -490,8 +540,8 @@ bash scripts/install-state-writer.sh --dry-run  # preview
 bash scripts/install-state-writer.sh --help     # all options
 ```
 
-Use `--claude-only` or `--codex-only` if you work with a single client. The installer refuses to
-overwrite a file you edited; add `--force` to replace it.
+Use `--claude-only`, `--codex-only`, or `--cursor-only` to select one client. The installer
+refuses to overwrite a file you edited; add `--force` to replace it.
 
 **Run the renderer by hand** (for example after editing `item-list.json` yourself):
 

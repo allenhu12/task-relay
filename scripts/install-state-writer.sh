@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 #
-# Install the task-relay state-writer subagent for Claude Code and Codex CLI (D10).
+# Install the task-relay state-writer subagent for Claude Code, Codex CLI and Cursor (D10).
 #
-# Usage: install-state-writer.sh [--dry-run] [--force] [--claude-only|--codex-only]
+# Usage: install-state-writer.sh [--dry-run] [--force] [--claude-only|--codex-only|--cursor-only]
 #
 #   Claude Code -> ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/agents/task-relay-state-writer.md
 #   Codex CLI   -> ${CODEX_HOME:-$HOME/.codex}/agents/task-relay-state-writer.toml
+#   Cursor      -> ${CURSOR_CONFIG_DIR:-$HOME/.cursor}/agents/task-relay-state-writer.md
 #
 # An existing file that is identical to the shipped definition counts as
 # "already installed". An existing file that differs is left alone unless
@@ -17,15 +18,17 @@ usage() {
   cat <<'USAGE'
 Usage: install-state-writer.sh [OPTIONS]
 
-Install the task-relay state-writer subagent for both CLIs:
+Install the task-relay state-writer subagent for all supported clients:
   Claude Code -> ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/agents/task-relay-state-writer.md
   Codex CLI   -> ${CODEX_HOME:-$HOME/.codex}/agents/task-relay-state-writer.toml
+  Cursor      -> ${CURSOR_CONFIG_DIR:-$HOME/.cursor}/agents/task-relay-state-writer.md
 
 Options:
   --dry-run       Print the actions and change nothing.
   --force         Replace an existing file that differs from the shipped one.
   --claude-only   Install only the Claude Code subagent.
   --codex-only    Install only the Codex subagent.
+  --cursor-only   Install only the Cursor subagent.
   -h, --help      Show this help.
 USAGE
 }
@@ -34,13 +37,15 @@ dry_run=0
 force=0
 do_claude=1
 do_codex=1
+do_cursor=1
 
 for arg in "$@"; do
   case "$arg" in
     --dry-run) dry_run=1 ;;
     --force) force=1 ;;
-    --claude-only) do_codex=0 ;;
-    --codex-only) do_claude=0 ;;
+    --claude-only) do_codex=0; do_cursor=0 ;;
+    --codex-only) do_claude=0; do_cursor=0 ;;
+    --cursor-only) do_claude=0; do_codex=0 ;;
     -h|--help) usage; exit 0 ;;
     *)
       echo "install-state-writer: unknown option: $arg" >&2
@@ -125,6 +130,12 @@ if [ "$do_codex" -eq 1 ]; then
   codex_home=${CODEX_HOME:-$HOME/.codex}
   install_one "$source_root/assets/agents/codex/task-relay-state-writer.toml" \
     "$codex_home/agents/task-relay-state-writer.toml" || status=1
+fi
+
+if [ "$do_cursor" -eq 1 ]; then
+  cursor_dir=${CURSOR_CONFIG_DIR:-$HOME/.cursor}
+  install_one "$source_root/assets/agents/cursor/task-relay-state-writer.md" \
+    "$cursor_dir/agents/task-relay-state-writer.md" || status=1
 fi
 
 if [ "$status" -eq 0 ] && [ "$dry_run" -eq 0 ]; then

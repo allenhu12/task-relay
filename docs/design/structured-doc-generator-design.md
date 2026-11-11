@@ -920,9 +920,9 @@ Key principles that guided the design:
 
 ### C. References
 
-- Task-relay skill: `/SKILL.md`
-- Session-log template: `/assets/session-log.template.md`
-- Item-list schema: `/references/item-list-schema.json`
+- Task-relay skill: `SKILL.md`
+- Session-log template: `assets/session-log.template.md`
+- Item-list schema: `references/item-list-schema.json`
 
 ---
 

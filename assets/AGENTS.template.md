@@ -1,4 +1,4 @@
-<!-- task-relay-agents: 3 -->
+<!-- task-relay-agents: 4 -->
 # AI Agent Instructions — {PROJECT_NAME}
 
 This is a task-relay project. These rules apply in every session. The task-relay skill holds the full procedures.
@@ -60,12 +60,13 @@ Every state write goes to the `task-relay-state-writer` subagent, so the main ag
 |---|---|
 | Claude Code | Agent/Task tool, subagent `task-relay-state-writer` |
 | Codex CLI | `spawn_agent` with `agent_type = "task-relay-state-writer"` — the role pins model and reasoning effort; do not override them |
+| Cursor Agent | Task tool with subagent `task-relay-state-writer`, or explicit `/task-relay-state-writer`; pass the update request as the prompt |
 
 - Install once per machine: `bash {SKILL_SCRIPTS_PATH}/install-state-writer.sh`. Contract: `{SKILL_REFERENCES_PATH}/state-writer-contract.md`.
 - Send **one update request** per flush: `PROJECT_ROOT`, `RENDER_SCRIPT`, the ordered ops (task status/notes/completed_at, set or clear `blocker`, item status, set `rulebook` / `context`, archive a terminal item), and the `progress.log` bullet lines.
 - A `blocked` task carries a `blocker` with `type`, `summary`, `since`: `needs_user` (needs `question`, optional `default_action`) or `external` (needs `waiting_on`). For `needs_user`, **stop and ask the user**; `default_action` is a suggestion only. A legacy blocked task with no `blocker` shows as 未分类; add the `blocker` in the next request once the user says which kind it is.
 - Who writes what: the subagent writes the three state files and re-renders `dashboard.html`; the main agent writes `20-working/<ITEM-ID>/log.md` and `memory.md`; nobody writes `user-decision.md`.
-- **If it fails** (not found, `unknown agent_type`, model unavailable, spawn error, or a `STATE-WRITER ERROR` reply): **stop**, report the failing step, the error and the fix (`{SKILL_SCRIPTS_PATH}/install-state-writer.sh`), and offer exactly three choices — ① retry after the fix; ② the main agent writes the state itself this time and runs the render script; ③ write nothing and end the session. Wait for the user.
+- **If it fails** (not found, `unknown agent_type`, model unavailable, Task/spawn error, or a `STATE-WRITER ERROR` reply): **stop**, report the failing step, the error and the fix (`{SKILL_SCRIPTS_PATH}/install-state-writer.sh`), and offer exactly three choices — ① retry after the fix; ② the main agent writes the state itself this time and runs the render script; ③ write nothing and end the session. Wait for the user.
 
 ## Session end
 

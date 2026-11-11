@@ -21,6 +21,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 CONTRACT = REPO_ROOT / "references" / "state-writer-contract.md"
 CLAUDE_AGENT = REPO_ROOT / "assets" / "agents" / "claude" / "task-relay-state-writer.md"
 CODEX_AGENT = REPO_ROOT / "assets" / "agents" / "codex" / "task-relay-state-writer.toml"
+CURSOR_AGENT = REPO_ROOT / "assets" / "agents" / "cursor" / "task-relay-state-writer.md"
 INSTALLER = REPO_ROOT / "scripts" / "install-state-writer.sh"
 
 BEGIN = "<!-- BEGIN STATE-WRITER INSTRUCTIONS -->"
@@ -43,11 +44,11 @@ def contract_body() -> str:
     return match.group(1).strip("\n")
 
 
-def claude_frontmatter_and_body() -> tuple[dict, str]:
-    text = CLAUDE_AGENT.read_text(encoding="utf-8")
+def markdown_frontmatter_and_body(path: Path) -> tuple[dict, str]:
+    text = path.read_text(encoding="utf-8")
     parts = text.split("---\n")
     if len(parts) < 3 or parts[0].strip():
-        raise AssertionError("claude agent file does not start with YAML frontmatter")
+        raise AssertionError(f"{path} does not start with YAML frontmatter")
     frontmatter = {}
     for line in parts[1].strip().splitlines():
         key, _, value = line.partition(":")
@@ -58,11 +59,13 @@ def claude_frontmatter_and_body() -> tuple[dict, str]:
 class AgentDefinitionTest(unittest.TestCase):
     def test_instruction_bodies_are_identical(self):
         body = contract_body()
-        _frontmatter, claude_body = claude_frontmatter_and_body()
+        _frontmatter, claude_body = markdown_frontmatter_and_body(CLAUDE_AGENT)
+        _frontmatter, cursor_body = markdown_frontmatter_and_body(CURSOR_AGENT)
         codex = tomllib.loads(CODEX_AGENT.read_text(encoding="utf-8"))
         codex_body = str(codex["developer_instructions"]).strip("\n")
         self.assertEqual(claude_body, body)
         self.assertEqual(codex_body, body)
+        self.assertEqual(cursor_body, body)
         self.assertGreater(len(body), 1000)
 
     def test_body_defines_the_reply_protocol_and_write_limits(self):
@@ -107,10 +110,17 @@ class AgentDefinitionTest(unittest.TestCase):
         self.assertTrue(data["description"])
 
     def test_claude_definition_frontmatter(self):
-        frontmatter, _body = claude_frontmatter_and_body()
+        frontmatter, _body = markdown_frontmatter_and_body(CLAUDE_AGENT)
         self.assertEqual(frontmatter["name"], "task-relay-state-writer")
         self.assertEqual(frontmatter["model"], "haiku")
         self.assertEqual(frontmatter["tools"], "Read, Write, Edit, Bash")
+        self.assertTrue(frontmatter["description"])
+
+    def test_cursor_definition_frontmatter(self):
+        frontmatter, _body = markdown_frontmatter_and_body(CURSOR_AGENT)
+        self.assertEqual(frontmatter["name"], "task-relay-state-writer")
+        self.assertEqual(frontmatter["model"], "inherit")
+        self.assertEqual(frontmatter["readonly"], "false")
         self.assertTrue(frontmatter["description"])
 
     def test_contract_documents_the_agent_type_answer(self):
@@ -131,14 +141,18 @@ class InstallerTest(unittest.TestCase):
         home = Path(self._tmp.name)
         self.claude_home = home / "claude"
         self.codex_home = home / "codex"
+        self.cursor_home = home / "cursor"
         self.claude_dest = self.claude_home / "agents" / "task-relay-state-writer.md"
         self.codex_dest = self.codex_home / "agents" / "task-relay-state-writer.toml"
+        self.cursor_dest = self.cursor_home / "agents" / "task-relay-state-writer.md"
 
     def run_installer(self, *args: str, claude_home: Path | None = None,
-                      codex_home: Path | None = None) -> subprocess.CompletedProcess:
+                      codex_home: Path | None = None,
+                      cursor_home: Path | None = None) -> subprocess.CompletedProcess:
         env = os.environ.copy()
         env["CLAUDE_CONFIG_DIR"] = str(claude_home or self.claude_home)
         env["CODEX_HOME"] = str(codex_home or self.codex_home)
+        env["CURSOR_CONFIG_DIR"] = str(cursor_home or self.cursor_home)
         return subprocess.run(
             ["/bin/bash", str(INSTALLER), *args],
             capture_output=True,
@@ -152,17 +166,20 @@ class InstallerTest(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, msg=result.stderr)
 
-    def test_fresh_install_copies_both_files(self):
+    def test_fresh_install_copies_all_files(self):
         result = self.run_installer()
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertTrue(self.claude_dest.exists())
         self.assertTrue(self.codex_dest.exists())
+        self.assertTrue(self.cursor_dest.exists())
         self.assertEqual(
             self.claude_dest.read_bytes(), CLAUDE_AGENT.read_bytes()
         )
         self.assertEqual(self.codex_dest.read_bytes(), CODEX_AGENT.read_bytes())
+        self.assertEqual(self.cursor_dest.read_bytes(), CURSOR_AGENT.read_bytes())
         self.assertIn(f"install: {self.claude_dest}", result.stdout)
         self.assertIn(f"install: {self.codex_dest}", result.stdout)
+        self.assertIn(f"install: {self.cursor_dest}", result.stdout)
 
     def test_second_run_is_idempotent(self):
         self.run_installer()
@@ -170,6 +187,7 @@ class InstallerTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertIn(f"already installed: {self.claude_dest}", result.stdout)
         self.assertIn(f"already installed: {self.codex_dest}", result.stdout)
+        self.assertIn(f"already installed: {self.cursor_dest}", result.stdout)
 
     def test_refuses_to_overwrite_a_different_file(self):
         self.claude_dest.parent.mkdir(parents=True)
@@ -197,8 +215,10 @@ class InstallerTest(unittest.TestCase):
         self.assertIn("[dry-run]", result.stdout)
         self.assertIn(str(self.claude_dest), result.stdout)
         self.assertIn(str(self.codex_dest), result.stdout)
+        self.assertIn(str(self.cursor_dest), result.stdout)
         self.assertFalse(self.claude_home.exists())
         self.assertFalse(self.codex_home.exists())
+        self.assertFalse(self.cursor_home.exists())
 
     def test_dry_run_reports_a_refusal_and_still_writes_nothing(self):
         self.claude_dest.parent.mkdir(parents=True)
@@ -223,12 +243,21 @@ class InstallerTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertTrue(self.claude_dest.exists())
         self.assertFalse(self.codex_home.exists())
+        self.assertFalse(self.cursor_home.exists())
 
     def test_codex_only_leaves_claude_untouched(self):
         result = self.run_installer("--codex-only")
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertTrue(self.codex_dest.exists())
         self.assertFalse(self.claude_home.exists())
+        self.assertFalse(self.cursor_home.exists())
+
+    def test_cursor_only_leaves_other_clients_untouched(self):
+        result = self.run_installer("--cursor-only")
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertTrue(self.cursor_dest.exists())
+        self.assertFalse(self.claude_home.exists())
+        self.assertFalse(self.codex_home.exists())
 
     def test_unknown_option_is_a_usage_error(self):
         result = self.run_installer("--nope")

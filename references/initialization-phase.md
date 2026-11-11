@@ -61,7 +61,7 @@ ls -la 10-reference/
    - Are there specific requirements or constraints?
    - What does "done" look like?
 3. For code projects, resolve source roots before finalizing the spec:
-   - `PROJECT_ROOT`: active local checkout root on the local workstation.
+   - `PROJECT_ROOT`: active checkout root on the local workstation.
    - `TARGET_ROOT`: matching remote compile-server checkout root, if source sync/compile is needed.
    - `REPO_PROFILE_ROOT`: profile folder containing `manifest.xml`, `metadata.json`, `repo_map.txt`, and `repo_map_upstream.txt`, if this is a multi-repo checkout.
    - `REPO_PROFILE_ROOT` must be confirmed by the user the first time the skill initializes a project. The agent may propose an inferred value, but must not write it to the spec until the user confirms it.

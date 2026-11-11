@@ -242,6 +242,7 @@ bash {SKILL_SCRIPTS_PATH}/install-state-writer.sh
 |---|---|
 | Claude Code | Agent/Task tool, subagent `task-relay-state-writer`, update request as the prompt |
 | Codex CLI | `spawn_agent` with `agent_type = "task-relay-state-writer"` and the update request as `message`. Do **not** pass `model` or `reasoning_effort` — the role pins them (`gpt-6-luna`, medium). |
+| Cursor Agent | Task tool with subagent `task-relay-state-writer`, or explicit `/task-relay-state-writer`; pass the update request as the prompt. |
 
 ### The update request
 
@@ -308,7 +309,9 @@ Detection signals:
 - Codex CLI: `spawn_agent` fails with `unknown agent_type 'task-relay-state-writer'`, the model
   is unavailable, or the spawn errors. If `spawn_agent` exposes **no** `agent_type` parameter,
   no agent definition is installed.
-- Either CLI: a `STATE-WRITER ERROR <step>: <message>` reply, or a non-zero render exit.
+- Cursor Agent: the custom subagent is missing from the Task tool, `/task-relay-state-writer`
+  is unavailable, or the Task call fails.
+- Any client: a `STATE-WRITER ERROR <step>: <message>` reply, or a non-zero render exit.
 
 Then, in order:
 

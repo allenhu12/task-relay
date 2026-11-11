@@ -2,7 +2,6 @@
 name: task-relay
 description: Manage complex, multi-session assignments using persistent state files, like a relay race where each session picks up where the last left off. This skill should be used when users need to work on assignments that span multiple sessions, require tracking progress, or involve many discrete items. Triggers include keywords like "task relay", "multi-session", "track progress", "continue work", "manage items", "incremental progress", "/task-relay learn", "task-relay retrospective", "task-input-batch.yaml", "batch ingest items".
 license: MIT
-version: 1.3
 ---
 
 # Task Relay
@@ -236,16 +235,18 @@ Full procedure with all commands, examples, algorithms, and acceptance criteria:
 
 ## State Writer (Subagent)
 
-Every task-relay state write goes through the **`task-relay-state-writer`** subagent (D1, D12). It runs on a cheap model on both CLIs, applies one update request, and re-renders the dashboard. It never decides what the work should be.
+Every task-relay state write goes through the **`task-relay-state-writer`** subagent (D1, D12). It uses a client-specific model configuration, applies one update request, and re-renders the dashboard. It never decides what the work should be.
+
+The preferred installation entry is `bash install.sh --cursor`, `--claude`, or `--codex`; it installs both this skill and the matching state writer. Use the command below only when the skill is already installed and the state writer needs repair or reinstall.
 
 **Install once per machine** (first use, or when the definition is missing):
 
 ```bash
-bash {SKILL_SCRIPTS_PATH}/install-state-writer.sh            # install for both CLIs
+bash {SKILL_SCRIPTS_PATH}/install-state-writer.sh            # install for all supported clients
 bash {SKILL_SCRIPTS_PATH}/install-state-writer.sh --dry-run  # preview without writing
 ```
 
-This installs `~/.claude/agents/task-relay-state-writer.md` (Claude Code, `model: haiku`) and `~/.codex/agents/task-relay-state-writer.toml` (Codex CLI, `model = "gpt-6-luna"`). The exact instruction text, the update-request grammar, and the Codex install evidence live in `references/state-writer-contract.md`.
+This installs `~/.claude/agents/task-relay-state-writer.md` (Claude Code, `model: haiku`), `~/.codex/agents/task-relay-state-writer.toml` (Codex CLI, `model = "gpt-6-luna"`), and `~/.cursor/agents/task-relay-state-writer.md` (Cursor Agent, `model: inherit`). The exact instruction text, the update-request grammar, and client install notes live in `references/state-writer-contract.md`.
 
 **How to call it**
 
@@ -253,6 +254,7 @@ This installs `~/.claude/agents/task-relay-state-writer.md` (Claude Code, `model
 |---|---|
 | Claude Code | Agent/Task tool with subagent `task-relay-state-writer`, passing the update request as the prompt |
 | Codex CLI | `spawn_agent` with `agent_type = "task-relay-state-writer"` and the update request as `message`. Do **not** pass `model` or `reasoning_effort`; the role pins both. |
+| Cursor Agent | Task tool with subagent `task-relay-state-writer`, or explicit `/task-relay-state-writer`; pass the update request as the prompt. |
 
 **The update request** — one plain-text message:
 
@@ -312,7 +314,8 @@ Detection signals:
 
 - Claude Code: the Agent/Task call reports the subagent is not found, or the spawn fails.
 - Codex CLI: `spawn_agent` fails with `unknown agent_type 'task-relay-state-writer'`, the model is not available, or the spawn errors. If `spawn_agent` has **no** `agent_type` parameter at all, no agent definition is installed.
-- Either CLI: the subagent returns `STATE-WRITER ERROR <step>: <message>`, or the render script exits non-zero.
+- Cursor Agent: the custom subagent is missing from the Task tool, `/task-relay-state-writer` is unavailable, or the Task call fails.
+- Any client: the subagent returns `STATE-WRITER ERROR <step>: <message>`, or the render script exits non-zero.
 
 Then the main agent:
 
@@ -544,16 +547,19 @@ Template files for creating new task relay assignments:
 - `dashboard.template.html` - Static skeleton for the generated `00-current/dashboard.html` (inline CSS, no JS)
 - `agents/claude/task-relay-state-writer.md` - Claude Code state-writer subagent (installed to `~/.claude/agents/`)
 - `agents/codex/task-relay-state-writer.toml` - Codex CLI state-writer agent (installed to `~/.codex/agents/`)
+- `agents/cursor/task-relay-state-writer.md` - Cursor state-writer subagent (installed to `~/.cursor/agents/`)
 
 ### scripts/
 Executable utilities:
+- `../install.sh` - Unified user-level installer for the skill and matching state writer (`--cursor`, `--claude`, or `--codex`; supports `--dry-run` and `--force`).
 - `generate-manifest.sh` - Generates / regenerates `10-reference/MANIFEST.md` from file frontmatters
 - `rotate-progress-log.sh` - Rotates `00-current/progress.log` to `90-archive/progress-log/progress-archive-YYYY-MM-DD.log` when it grows past thresholds (default 1000 lines / 200 KB), seeds a fresh log with a continuity header, and regenerates `90-archive/progress-log/PROGRESS-ARCHIVE-MANIFEST.md`. Run with `--manifest-only` to rebuild the manifest only. **State-recovery rule: only ever read `00-current/progress.log`; NEVER auto-read `90-archive/`.**
 - `render-dashboard.sh` / `render-dashboard.py` - Render `00-current/dashboard.html` from `item-list.json` + `item-list-archive.json` (Python 3 standard library only; the shell wrapper reports a clear error and exits 127 when `python3` is missing).
 - `dashboard-i18n.py` / `dashboard_strings.py` - Maintain the dashboard translation cache (`list-missing`, `apply`, `prune`) and hold the shared list of translatable fields (D16).
 - `agents-md.py` - Write (`write <root> [--name] [--dry-run]`) or check (`check <root>`: exit 0 current, 1 outdated, 2 missing) a project's `AGENTS.md`. Fills `{PROJECT_NAME}` and the `{SKILL_*}` paths; backs up a replaced copy to `90-archive/AGENTS.md.bak-<timestamp>`.
 - `state-check.py` - Deterministic state checker (`<root> [--fix] [--language]`): metadata counts, blocker placement, item rollup, timestamps, and untranslated strings. Exits 1 on any problem; `--fix` repairs only metadata and the rollup. Run it by hand any time.
-- `install-state-writer.sh` - Install the state-writer subagent for Claude Code and Codex CLI (`--dry-run`, `--force`, `--claude-only`, `--codex-only`).
+- `check-sensitive-data.sh` - Scan the current worktree for personal paths, known internal identifiers, private-network URLs, private keys, and common token formats before publishing.
+- `install-state-writer.sh` - Install the state-writer subagent for Claude Code, Codex CLI, and Cursor (`--dry-run`, `--force`, `--claude-only`, `--codex-only`, `--cursor-only`).
 
 ### references/
 Additional documentation:
