@@ -1,4 +1,4 @@
-<!-- task-relay-agents: 2 -->
+<!-- task-relay-agents: 3 -->
 # AI Agent Instructions — {PROJECT_NAME}
 
 This is a task-relay project. These rules apply in every session. The task-relay skill holds the full procedures.
@@ -38,10 +38,19 @@ Read `AGENTS.md`, `00-current/item-list.json`, `user-decision.md`, `memory.md` (
 
 ## Items and tasks
 
-- Project = many items. Item = one session's work. Tasks = checkpoints inside an item; every item has ≥1 task.
+- Project = many items. Item = a milestone (one or more outcomes). Task = a small goal inside an item that ends in a verifiable state; every item has ≥1 task. A session is the vehicle, not the size: an item or task may span several sessions.
 - Task IDs: `TASK-<item>-<task>` (e.g. `TASK-001-01`). The number is identity, not run order.
 - Status (items and tasks): `pending | in_progress | completed | blocked | cancelled`. `blocked` is not terminal — the user can pick another task. `cancelled` is terminal and needs `notes`.
 - **Overflow** (context fills mid-item): leave the item and the current task `in_progress`, write a handoff note in `progress.log` naming the task to resume. The next session resumes it, or the user picks another pending task.
+
+## Rulebook and context files
+
+An item or task may link one `rulebook` (objective, deliverables, acceptance, boundaries, stop) and a `context` list (files to read). A task also uses its item's files.
+
+- **Read first.** When a task goes `in_progress`, and when you resume it after a handoff, read the item's rulebook and context, then the task's. The state writer's `READ FIRST:` reply lists them. A missing file → stop and ask. Write `Read before work: <paths>` in `log.md`. After compaction, re-read the active rulebook.
+- **Suggest, never decide.** Only the user decides what is linked. Suggest a rulebook at task start when the task looks long or risky, and at **every** handoff of a task that has none ("Draft a rulebook?"). Suggest context files at task start (references you chose) and at a handoff (files you really used); ask once for the whole list; keep about 5 per task. On a yes, or when the user asks, send `set rulebook` / `set context` — for any item, active or not.
+- **Draft a rulebook** with a rulebook skill if one is available (search skills-mindmap for `rulebook`), else by hand: frontmatter `Type: rulebook`, `Applies_to: <id>`; sections Objective, Deliverables, Acceptance, Boundaries, Stop, Staying on Track, Changes. Path: `20-working/<ITEM-ID>/<TASK-ID>-rulebook.md` (or `<ITEM-ID>-rulebook.md`).
+- **Check before closing.** Before you mark the work `completed`, check every rulebook section and log the result in `log.md`. On a failure, stop and offer: ① keep working ② block (`needs_user`, name the section) ③ update the rulebook (user confirms; add a `## Changes` line) ④ accept and close (log the gap in `log.md` and `notes`). Never pick alone; never edit a rulebook without the user's yes.
 
 ## State writer
 
@@ -53,7 +62,7 @@ Every state write goes to the `task-relay-state-writer` subagent, so the main ag
 | Codex CLI | `spawn_agent` with `agent_type = "task-relay-state-writer"` — the role pins model and reasoning effort; do not override them |
 
 - Install once per machine: `bash {SKILL_SCRIPTS_PATH}/install-state-writer.sh`. Contract: `{SKILL_REFERENCES_PATH}/state-writer-contract.md`.
-- Send **one update request** per flush: `PROJECT_ROOT`, `RENDER_SCRIPT`, the ordered ops (task status/notes/completed_at, set or clear `blocker`, item status, archive a terminal item), and the `progress.log` bullet lines.
+- Send **one update request** per flush: `PROJECT_ROOT`, `RENDER_SCRIPT`, the ordered ops (task status/notes/completed_at, set or clear `blocker`, item status, set `rulebook` / `context`, archive a terminal item), and the `progress.log` bullet lines.
 - A `blocked` task carries a `blocker` with `type`, `summary`, `since`: `needs_user` (needs `question`, optional `default_action`) or `external` (needs `waiting_on`). For `needs_user`, **stop and ask the user**; `default_action` is a suggestion only. A legacy blocked task with no `blocker` shows as 未分类; add the `blocker` in the next request once the user says which kind it is.
 - Who writes what: the subagent writes the three state files and re-renders `dashboard.html`; the main agent writes `20-working/<ITEM-ID>/log.md` and `memory.md`; nobody writes `user-decision.md`.
 - **If it fails** (not found, `unknown agent_type`, model unavailable, spawn error, or a `STATE-WRITER ERROR` reply): **stop**, report the failing step, the error and the fix (`{SKILL_SCRIPTS_PATH}/install-state-writer.sh`), and offer exactly three choices — ① retry after the fix; ② the main agent writes the state itself this time and runs the render script; ③ write nothing and end the session. Wait for the user.
@@ -67,12 +76,12 @@ Non-item sessions (init, batch ingest, status checks) append to `progress.log` o
 
 ## Documents
 
-- Name generated documents `<num>_<YYYY-MM-DD>_<author>_<description>.md` (3-digit number; author = claude, cursor, gemini, user, …; hyphenated description). State files keep their standard names. Exception: `10-reference/000_YYYY-MM-DD_spec.md` has no author segment.
+- Name generated documents `<num>_<YYYY-MM-DD>_<author>_<description>.md` (3-digit number; author = claude, cursor, gemini, user, …; hyphenated description). State files keep their standard names. Exceptions: `10-reference/000_YYYY-MM-DD_spec.md` has no author segment; a rulebook is `<TASK-ID>-rulebook.md` or `<ITEM-ID>-rulebook.md`, because several agents edit it.
 - Every AI-generated markdown document starts with:
 
   ```yaml
   ---
-  Type: working | spec | decision | note | session-log
+  Type: working | spec | decision | note | session-log | rulebook
   Status: Active | Superseded | Obsolete
   Author: claude | cursor | gemini | user
   Created: YYYY-MM-DD

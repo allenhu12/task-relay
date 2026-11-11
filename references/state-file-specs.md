@@ -23,7 +23,18 @@ Template: `assets/item-list.template.json`. Schema:
 - **At most one `in_progress` task** within the `in_progress` item at any time.
 - **Item completion rollup**: item may be set `completed` only when every task is `completed` or `cancelled` AND every `cancelled` task has a non-empty `notes`, AND all item-level `validation_steps` pass.
 - **`working_dir`**: null until the item first transitions to `in_progress`. Set to `20-working/<ITEM-ID>` lazily.
-- **`files`**: agent-maintained list of files inside `working_dir`.
+- **`files`**: agent-maintained list of files inside `working_dir`. This is the **output** of the work.
+- **`rulebook`** (optional, item and task): one path, relative to the project root, or
+  `null`. The rulebook states the objective, deliverables, acceptance, boundaries and
+  stop point. The agent reads it before work and checks it before closing. A task also
+  uses its item's rulebook. File name: `20-working/<ITEM-ID>/<TASK-ID>-rulebook.md` or
+  `20-working/<ITEM-ID>/<ITEM-ID>-rulebook.md`.
+- **`context`** (optional, item and task): a list of paths, relative to the project root.
+  The agent reads them before work. They are the **input** of the work and are not
+  checked at closing. A task also reads its item's context.
+- **Path rules** for `rulebook` and `context`: relative to the project root, never
+  absolute, never containing `..`. Only the state writer writes these fields.
+  `state-check.py` reports a bad path as a problem and a missing file as a warning.
 - **Task `blocker`** (optional, v1.3+): a structured record of *why* a task is
   `blocked`. Only set while the task is blocked, and removed as soon as the task
   leaves `blocked`. See "Task `blocker`" below.
@@ -81,6 +92,7 @@ Template: `assets/item-list-archive.template.json`.
 - Do **NOT** read during State Recovery — only on demand when detailed history of a specific terminal item is needed.
 - Never delete entries.
 - Archived records include `working_dir` and `files` paths (stable; no auto-move on completion).
+- Archived records keep `rulebook` and `context` (item and task) for history. They are not copied into `terminal_summary`.
 
 ## 00-current/dashboard.html (derived, generated)
 

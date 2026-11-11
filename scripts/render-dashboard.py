@@ -24,6 +24,7 @@ import os
 import sys
 import tempfile
 from pathlib import Path
+from urllib.parse import quote
 from typing import Any, Callable, Optional, Sequence
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -66,6 +67,7 @@ LABELS = {
     "activity_cap": "只显示最近 5 条",
     "deliverables_cap": "只显示最近 5 个文件",
     "finished_cap": "默认折叠，点开看 task。所有已结束事项都保留 task 明细。",
+    "rulebook_badge": "📘 Rulebook",
     "status": {
         "pending": "待办",
         "in_progress": "进行中",
@@ -283,6 +285,22 @@ def progress_bar(tasks: Sequence[dict]) -> str:
     )
 
 
+def rulebook_badge(record: dict) -> str:
+    """A link to the record's rulebook, or "". The file itself is never opened (ADR 0001).
+
+    `dashboard.html` lives in `00-current/`, and rulebook paths are relative to
+    the project root, so the link goes up one level.
+    """
+    path = record.get("rulebook")
+    if not isinstance(path, str) or not path.strip():
+        return ""
+    href = "../" + quote(path.strip().replace("\\", "/"), safe="/-_.~")
+    return (
+        f'<a class="rb" href="{esc(href)}" title="{esc(path)}">'
+        f'{esc(LABELS["rulebook_badge"])}</a>'
+    )
+
+
 def task_line(task: dict, translations: Optional[dict] = None) -> str:
     kind = blocker_kind(task)
     status = as_text(task.get("status"))
@@ -296,6 +314,7 @@ def task_line(task: dict, translations: Optional[dict] = None) -> str:
         "<span>",
         f'<span class="mono">{esc(task.get("id"))}</span> ',
         data_span(task.get("description"), translations),
+        rulebook_badge(task),
     ]
     original_note = task_note(task)
     if original_note:
@@ -319,10 +338,15 @@ def item_summary(item: dict, open_by_default: bool, translations: Optional[dict]
     tasks = task_items(item)
     status = as_text(item.get("status"))
     open_attr = " open" if open_by_default else ""
+    description = data_span(item.get("description"), translations)
+    badge = rulebook_badge(item)
+    if badge:
+        # One grid cell: keep the badge inside the description column.
+        description = f"<span>{description}{badge}</span>"
     return (
         f'<details class="item"{open_attr}><summary>'
         f'<span class="mono">{esc(item.get("id"))}</span>'
-        f"{data_span(item.get('description'), translations)}"
+        f"{description}"
         f"{chip(status)}"
         f"{progress_bar(tasks)}"
         f"</summary>{suffix}{task_lines(item, translations)}</details>"
@@ -367,6 +391,12 @@ def render_kpis(needs_you: int, external: int, in_progress_items: int,
     )
 
 
+def rulebook_row(item: dict, task: dict) -> str:
+    """Rulebook links for a needs-you card: the item's, then the task's (G17, G19)."""
+    badges = [badge for badge in (rulebook_badge(item), rulebook_badge(task)) if badge]
+    return f'<div class="d">{" ".join(badges)}</div>' if badges else ""
+
+
 def render_needs_you(entries: Sequence[tuple[dict, dict]],
                      translations: Optional[dict] = None) -> str:
     heading = (
@@ -393,6 +423,7 @@ def render_needs_you(entries: Sequence[tuple[dict, dict]],
                 f'<div class="q">{question}</div>'
                 f'<div class="d">{esc(route)}</div>'
                 f'<div class="d">{esc(LABELS["unclassified_hint"])}</div>'
+                f"{rulebook_row(item, task)}"
                 "</div>"
             )
             continue
@@ -414,6 +445,7 @@ def render_needs_you(entries: Sequence[tuple[dict, dict]],
         since = as_text(blocker.get("since"))
         if since:
             details.append(f'<div class="d">{esc(LABELS["since"])} {esc(since)}</div>')
+        details.append(rulebook_row(item, task))
         cards.append(
             f'<div class="card bl"><div class="who">{esc(who)}</div>'
             + "".join(details)

@@ -64,6 +64,8 @@ ls 10-reference/
 # 8. Load relevant reference files (progressive disclosure)
 # Based on the current item's category/description and MANIFEST entries,
 # decide which reference files to fully read. Only load what's relevant.
+# Files linked in an item's or task's `rulebook` / `context` are NOT optional:
+# read them when the task starts or resumes (Step 3, step 5a).
 
 # 9. Initialize environment
 ./init.sh  # or follow init.md
@@ -89,6 +91,7 @@ npm test  # or equivalent
 - Read `10-reference/MANIFEST.md` (discover available reference files); run `ls 10-reference/` and update MANIFEST if files added/removed
 - If `90-archive/progress-log/PROGRESS-ARCHIVE-MANIFEST.md` exists, read it. Pull a specific archive only on demand — never speculatively
 - Based on the current item's category and description, load only relevant reference files (progressive disclosure)
+- Note which tasks link a `rulebook` / `context`; they are read at step 5a, not skipped
 - Check metadata counts (progress overview); note any blockers from prior sessions
 - Verify environment initialized successfully
 
@@ -100,7 +103,7 @@ npm test  # or equivalent
 
 If `item-list.json` contains an item with `status: in_progress`:
 - Do **NOT** run item selection — that item is already chosen.
-- If a task within that item is `in_progress`: propose resuming that specific task (the overflow resume point).
+- If a task within that item is `in_progress`: propose resuming that specific task (the overflow resume point). On confirm, run **step 5a** (load task context) before any work.
 - If no task is `in_progress` in the item: list remaining `pending` tasks and **ask the user to choose** which one to run next.
 - Do NOT mark anything new `in_progress` until the user responds.
 
@@ -158,12 +161,13 @@ After the item is confirmed `in_progress`, enter the task loop.
 ### Task loop protocol
 
 1. Read the item's `tasks[]` from `item-list.json`.
-2. List all `pending` tasks (do NOT show completed/cancelled unless the user asks).
+2. List all `pending` tasks (do NOT show completed/cancelled unless the user asks). Mark a task that has a `rulebook` (its own or its item's) with 📘.
 3. Ask the user: "Which task should we work on? [list]"
 4. **Wait for user selection.** The agent does not auto-pick.
 5. Mark the selected task `in_progress`; flush `item-list.json` immediately through the state writer (§ Step 3.5).
-6. Do the work for that task.
-7. Run the task's `validation_steps`.
+5a. **Load task context.** Read the item's `rulebook` and `context`, then the task's — the state writer's reply lists them as `READ FIRST: <paths>`. If a file is missing, stop and ask. Write `Read before work: <paths>` in `20-working/<ITEM-ID>/log.md`. Then make the suggestions in § Rulebook and context files, if they apply.
+6. Do the work for that task. After compaction, re-read the active rulebook.
+7. Run the task's `validation_steps`, then the rulebook check (§ Step 4.1) if a rulebook applies.
 8. Mark the task `completed` / `blocked` / `cancelled`; flush `item-list.json` through the state writer (§ Step 3.5). For `blocked`, classify the blocker first — see § Step 3.5.
 9. Append progress note to `20-working/<ITEM-ID>/log.md`.
 10. **STOP. Go back to step 2 of this loop** (list remaining tasks, ask again).
@@ -179,9 +183,33 @@ The loop ends when:
 - `cancelled` tasks require `notes`; they are skipped in selection.
 - The agent NEVER auto-advances to the next task.
 
+### Rulebook and context files
+
+An item or task may link one `rulebook` and a list of `context` files. A task also uses its
+item's. Only the user decides what is linked; the agent suggests.
+
+- **Rulebook suggestion.** At step 5a, if the task looks long or risky (the user calls it
+  long, its `validation_steps` are vague, or it touches several repos) and no rulebook
+  applies, ask once: "Draft a rulebook?" At **every** handoff of a task with no rulebook,
+  ask again (no "no" is stored).
+- **Drafting.** Use a rulebook skill if one is available (search skills-mindmap for
+  `rulebook`); else write it by hand: frontmatter `Type: rulebook`, `Applies_to: <id>`,
+  sections Objective, Deliverables, Acceptance (point to `validation_steps`), Boundaries,
+  Stop, Staying on Track, Changes. Path: `20-working/<ITEM-ID>/<TASK-ID>-rulebook.md` or
+  `20-working/<ITEM-ID>/<ITEM-ID>-rulebook.md`. Write it only after the user confirms the
+  draft, then send `set rulebook` in the next update request.
+- **Context pins.** Suggest files at step 5a (references you chose) and at a handoff (files
+  you really used); ask once for the whole list; keep about 5 per task; suggest removing stale
+  ones. When the user asks to pin or unpin a file — for any item, active or not — send one
+  `set context` request with the full new list. Never pin without a yes.
+- Every link change adds a `progress.log` line, e.g.
+  `Pinned context to TASK-005-02: 05-plans/004_design.md (user request)`.
+
 ### Overflow / mid-session handoff
 
 If context fills before the item is done:
+0. If the current task has no rulebook, ask "Draft a rulebook?" Suggest context pins from
+   the files you used. Apply what the user accepts in the same update request as step 2.
 1. Ensure the current task's state is flushed (`in_progress` or `completed` in JSON).
 2. Append a handoff note to `00-current/progress.log`:
    ```markdown
@@ -228,13 +256,17 @@ OPS:
 1. task TASK-003-02 status=completed completed_at=2026-09-28T10:00:00Z
 2. task TASK-003-03 status=blocked blocker.type=external blocker.summary=... blocker.waiting_on=... blocker.since=2026-09-28T10:05:00Z
 3. item ITEM-003 status=in_progress
-4. progress.log:
+4. task TASK-003-03 rulebook=20-working/ITEM-003/TASK-003-03-rulebook.md
+5. task TASK-003-03 context=["05-plans/004_signing-design.md"]
+6. progress.log:
    TASK-003-02 completed; validation passed.
-NOTE: batch of 4 ops from session 7
+   Linked rulebook and context to TASK-003-03 (user request).
+NOTE: batch of 6 ops from session 7
 ```
 
 Supported ops: task status / notes / completed_at; set or clear a task `blocker`
-(`blocker=none` clears it); item status; `archive <ITEM-ID>` for a terminal item (moves the full
+(`blocker=none` clears it); item status; `rulebook=<path>` / `rulebook=none` and
+`context=[...]` (JSON list, `[]` clears) on an item or task; `archive <ITEM-ID>` for a terminal item (moves the full
 record and writes the compact `terminal_summary` entry); `progress.log:` bullets.
 
 The writer then runs, in order: the ops, `state-check.py --fix` (metadata counts and the item
@@ -245,7 +277,9 @@ longer blocked — the main agent does not track that by hand.
 
 The subagent replies with exactly one line:
 `STATE-WRITER OK <n> ops; dashboard rendered` or
-`STATE-WRITER ERROR <step>: <message>`.
+`STATE-WRITER ERROR <step>: <message>`. When an op set a task `in_progress` and the task or
+its item links files, the OK line ends with `; READ FIRST: <paths>` (from
+`state-check.py --read-first <TASK-ID>`). Read those files at step 5a.
 
 ### Blocked tasks: classify the blocker (D6, D7, D14)
 
@@ -312,6 +346,23 @@ Task TASK-001-02 validation_steps:
 → All task validations passed → mark TASK-001-02 completed
 ```
 
+### 4.1 Rulebook check
+
+If a rulebook applies (the task's or its item's), check every section before you mark the
+task `completed`: Objective met, Deliverables at their paths, Acceptance passed, no Boundary
+crossed, Stop condition reached. List any answer still tagged `[guess]` as unconfirmed.
+Write the result in `log.md`.
+
+If a check fails, **stop**, name the section and the evidence, and offer four choices. Wait
+for the user; never pick alone.
+
+| # | Choice | Result |
+|---|---|---|
+| ① | Keep working | Fix the gap, then check again |
+| ② | Block the task | `blocked` with a `needs_user` blocker whose question names the section |
+| ③ | Update the rulebook | Edit it only after the user's yes; add a dated `## Changes` line; check again |
+| ④ | Accept and close | Record the gap in `log.md` and the task's `notes`, then close |
+
 ## Step 5: Item Completion and Archival
 
 ### 5.1 Item completion rollup check
@@ -320,6 +371,7 @@ Before marking an item `completed`, verify:
 1. Every task is `completed` or `cancelled`.
 2. Every `cancelled` task has a non-empty `notes` field.
 3. Every item-level `validation_steps` entry passes.
+4. If the item links a `rulebook`, it passes the check in § Step 4.1.
 
 If any check fails, do NOT mark completed. Fix or mark `blocked`.
 

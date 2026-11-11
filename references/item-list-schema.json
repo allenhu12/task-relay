@@ -95,7 +95,20 @@
             "items": {
               "type": "string"
             },
-            "description": "Files inside working_dir, agent-maintained."
+            "description": "Files inside working_dir, agent-maintained. OUTPUT of the work (compare `context`, the input)."
+          },
+          "rulebook": {
+            "type": ["string", "null"],
+            "minLength": 1,
+            "description": "Optional path (relative to the project root) of this item's rulebook: objective, deliverables, acceptance, boundaries, stop. Every task of the item reads it before work and checks it before closing. Usually 20-working/<ITEM-ID>/<ITEM-ID>-rulebook.md."
+          },
+          "context": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Optional paths (relative to the project root) that every task of this item must read before work. INPUT to the work; not checked at closing (compare `files`, the output)."
           },
           "tasks": {
             "type": "array",
@@ -135,6 +148,19 @@
                 "notes": {
                   "type": "string",
                   "description": "Additional context. REQUIRED when status == cancelled."
+                },
+                "rulebook": {
+                  "type": ["string", "null"],
+                  "minLength": 1,
+                  "description": "Optional path (relative to the project root) of this task's rulebook. Read before work, on resume after a handoff and after compaction; checked before closing. Usually 20-working/<ITEM-ID>/<TASK-ID>-rulebook.md. The task also uses its item's rulebook."
+                },
+                "context": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "description": "Optional paths (relative to the project root) that only this task must read before work. Not checked at closing. The task also reads its item's context."
                 },
                 "blocker": {
                   "type": "object",
